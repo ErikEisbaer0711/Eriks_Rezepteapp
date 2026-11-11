@@ -1,6 +1,6 @@
 // Eriks Rezepte – Offline-Speicher für die App-Dateien. Deine Daten liegen NICHT hier, sondern in IndexedDB.
-const CACHE = 'eriks-rezepte-165baa5b28';
-const FILES = ["./", "index.html", "styles.css?v=165baa5b28", "app.js?v=165baa5b28", "manifest.webmanifest", "icons/apple-touch-icon.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
+const CACHE = 'eriks-rezepte-6e50f0c3d0';
+const FILES = ["./", "index.html", "styles.css?v=6e50f0c3d0", "app.js?v=6e50f0c3d0", "manifest.webmanifest", "icons/apple-touch-icon.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); });
 self.addEventListener('message', (e) => { if (e.data === 'skip-waiting') self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
