@@ -662,6 +662,91 @@ button, a, label { -webkit-tap-highlight-color: transparent; }
 .update-bar { position: fixed; left: 50%; transform: translateX(-50%); top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 60; background: var(--ink); color: var(--on-ink); border-radius: 14px; padding: 8px 8px 8px 14px; display: flex; gap: 10px; align-items: center; font-size: 13.5px; box-shadow: 0 10px 30px rgba(38, 38, 36, .2); max-width: calc(100vw - 28px); }
 .update-bar button { border: 0; border-radius: 10px; padding: 7px 12px; font: 600 13px var(--font); background: var(--on-ink); color: var(--ink); }
 
+/* ===== Runde 9: iPhone-Feinschliff ===== */
+html, body { touch-action: manipulation; }
+#tabbar, #tabbar * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* Rezept-Aktionen unten */
+.rec-actions { display: flex; flex-direction: column; gap: 8px; }
+.act { display: grid; grid-template-columns: 40px minmax(0, 1fr) 18px; gap: 12px; align-items: center; width: 100%; text-align: left; border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 16px; padding: 12px 14px; color: var(--fg); font: inherit; cursor: pointer; }
+.act:hover { filter: brightness(.985); }
+.act:active { transform: scale(.99); }
+.act > svg { width: 16px; height: 16px; color: var(--fg-3); }
+.act-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--leaf-soft); color: var(--accent); }
+.act-ic svg { width: 20px; height: 20px; }
+.act-t b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.act-t small { display: block; color: var(--fg-2); font-size: 12.5px; line-height: 1.4; margin-top: 1px; }
+.act-dup { align-self: center; display: inline-flex; gap: 6px; align-items: center; margin-top: 4px; }
+.act-dup svg { width: 15px; height: 15px; }
+#dlg .rec-actions .act { box-shadow: none; border: 1px solid var(--line); }
+
+/* Zutat optional: eigene Zeile auf dem Handy */
+@media (min-width: 901px) { .ing-row .opt-lbl { display: none; } }
+@media (max-width: 900px) {
+  .ing-row { grid-template-columns: minmax(0, 1fr) 64px 64px; grid-template-areas: "n a u" "m m m" "o b b"; }
+  .ing-row .c-opt { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .ing-row .opt-lbl { display: inline; font-size: 13px; color: var(--fg-2); margin: 0; text-align: left; }
+}
+
+/* Arbeit als Auswahlfeld */
+.work-row { display: flex; gap: 6px; padding: 0 0 2px; flex-wrap: wrap; }
+.work-sel { position: relative; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 10px; height: 36px; padding: 0 30px 0 10px; flex: 1 1 170px; min-width: 0; color: var(--fg-2); background: var(--surface); }
+.work-sel::after { content: ""; position: absolute; right: 12px; top: 50%; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: translateY(-70%) rotate(45deg); opacity: .6; pointer-events: none; }
+.work-sel svg { width: 16px; height: 16px; flex: none; }
+.work-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; outline: none; font: 500 14px var(--font); color: inherit; width: 100%; min-width: 0; height: 100%; padding: 0; cursor: pointer; }
+.work-sel.on { color: var(--fg); border-color: transparent; font-weight: 600; }
+.work-sel.on select { font-weight: 600; }
+.work-sel.s-frueh, .work-sel.s-tag { background: color-mix(in srgb, var(--mid) 30%, var(--surface)); }
+.work-sel.s-spaet { background: var(--clay-soft); }
+.work-sel.s-nacht, .work-sel.s-fruehnacht { background: color-mix(in srgb, var(--night) 28%, var(--surface)); }
+.work-sel.s-ort { background: var(--leaf-soft); color: var(--leaf-ink); }
+.work-row .place { height: 36px; flex: 1 1 170px; }
+.work-row .place input { font-size: 14px; }
+
+/* Mahlzeiten */
+.meal-txt { background: var(--leaf-soft); color: var(--leaf-ink); font-weight: 500; }
+.meal .mt-pick { position: relative; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; overflow: visible; }
+.meal .mt-pick svg { width: 11px; height: 11px; opacity: .55; flex: none; }
+.meal .mt-pick select.mt-sel { position: absolute; inset: -6px -4px; opacity: 0; width: auto; max-width: none; font-size: 16px; cursor: pointer; }
+
+/* Tab-Leiste: tiefer, darunter sanfter Verlauf */
+#tabbar { bottom: calc(6px + env(safe-area-inset-bottom, 0px) * .45); background: color-mix(in srgb, var(--surface) 78%, transparent); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px); }
+body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: calc(96px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 0%, transparent), color-mix(in srgb, var(--bg) 92%, transparent) 70%); pointer-events: none; z-index: 39; }
+@media print { body::after { display: none; } }
+
+/* Überschriften der Bereiche auf dem Handy */
+@media (max-width: 600px) {
+  .tp-hero-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "shelf" "title" "actions"; gap: 6px 0; }
+  .tp-hero-head > .shelf-wrap { justify-self: end; margin-bottom: -18px; }
+  .tp-hero-head .shelf { width: 170px; }
+  .tp-head h1 { font-size: 36px; }
+}
+
+@media (max-width: 760px) {
+  .meal { grid-template-columns: 86px minmax(0, 1fr) auto auto; gap: 6px; }
+  .meal-txt { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+}
+/* Tage zum Wischen */
+.day-strip { display: none; }
+@media (max-width: 760px) {
+  .day-strip { display: flex; gap: 6px; margin-bottom: -14px; }
+  .ds { flex: 1 1 0; min-width: 0; border: 0; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); padding: 6px 0 7px; display: flex; flex-direction: column; align-items: center; gap: 1px; color: var(--fg-2); font: inherit; position: relative; }
+  .ds small { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .ds b { font-size: 17px; color: var(--fg); font-weight: 600; }
+  .ds.is-today b { color: var(--accent); }
+  .ds.on { background: var(--accent); color: color-mix(in srgb, #fff 80%, transparent); }
+  .ds.on b { color: #fff; }
+  .ds-dot { width: 5px; height: 5px; border-radius: 50%; background: transparent; }
+  .ds-dot.s-frueh, .ds-dot.s-tag { background: var(--mid); }
+  .ds-dot.s-spaet { background: var(--orange); }
+  .ds-dot.s-nacht, .ds-dot.s-fruehnacht { background: var(--night); }
+  .ds-dot.s-ort { background: var(--good); }
+  .ds.on .ds-dot:not([class$="ds-dot"]) { background: #fff; }
+  .days { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; margin: 0 calc(-1 * max(16px, env(safe-area-inset-right, 0px))) 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding: 2px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); scroll-padding: 0 max(16px, env(safe-area-inset-left, 0px)); scrollbar-width: none; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .days::-webkit-scrollbar { display: none; }
+  .days > .day { flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; }
+}
+
 /* Erinnerung „Essen schon vorgekocht?“ */
 .reminder { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabh) + 8px + env(safe-area-inset-bottom, 0px)); width: min(560px, calc(100vw - 28px)); z-index: 41; background: var(--ink); color: var(--on-ink); border-radius: 18px; padding: 12px 12px 12px 14px; display: flex; gap: 12px; align-items: center; box-shadow: 0 12px 34px rgba(38, 38, 36, .22); }
 .reminder .ri { width: 38px; height: 38px; border-radius: 11px; background: color-mix(in srgb, var(--on-ink) 12%, transparent); color: var(--oak); display: grid; place-items: center; flex: none; }

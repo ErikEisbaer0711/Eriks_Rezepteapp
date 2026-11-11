@@ -427,7 +427,7 @@ function renderSidebar(rt) {
   sb.replaceChildren();
   const head = h('div', { class: 'side-head' },
     h('div', { class: 'brand' },
-      h('div', { class: 'brand-text' }, h('small', null, 'Winter Arc'), h('h1', null, 'Eriks Rezepte'), h('em', null, 'Was bringt dich heute weiter?')),
+      h('div', { class: 'brand-text' }, h('small', null, 'Winter Arc'), h('h1', null, 'Eriks Rezepte')),
       h('div', { class: 'shelf-wrap', html: shelfSVG('rezepte') })),
     todayCard(),
     h('div', { class: 'search-row' },
@@ -511,11 +511,6 @@ function viewRecipe(r) {
   const cook = state.cook[r.id] || (state.cook[r.id] = { ing: new Set(), steps: new Set() });
   wrap.append(toolbar(
     h('div', { class: 'spacer' }),
-    h('button', { class: 'btn', id: 'btn-plan', onclick: () => openPlanDialog(r), title: 'Im Wochenplan einplanen' }, icon('calendar'), h('span', { class: 'lbl-wide' }, 'Einplanen')),
-    h('button', { class: 'btn', id: 'btn-shop', onclick: () => shopRecipe(r), title: 'Zutaten auf die Einkaufsliste' }, icon('cart'), h('span', { class: 'lbl-wide' }, 'Einkaufen')),
-    h('button', { class: 'btn', id: 'btn-share', onclick: () => exportRecipe(r), title: 'Rezept als Datei teilen oder sichern', 'aria-label': 'Rezept teilen' }, icon('share'), h('span', { class: 'lbl-wide' }, 'Teilen')),
-    h('button', { class: 'btn', onclick: () => printRecipe(r), title: 'Als PDF exportieren' }, icon('pdf'), h('span', { class: 'lbl-wide' }, 'PDF')),
-    h('button', { class: 'btn', onclick: () => duplicate(r), title: 'Duplizieren', 'aria-label': 'Duplizieren' }, icon('copy')),
     h('button', { class: 'btn danger', onclick: () => confirmDelete(r), title: 'Löschen', 'aria-label': 'Löschen' }, icon('trash')),
     h('button', { class: 'btn primary', id: 'btn-edit', 'aria-label': 'Bearbeiten', onclick: () => go('e-' + r.id) }, icon('edit'), h('span', { class: 'lbl-wide' }, 'Bearbeiten'))));
 
@@ -597,6 +592,11 @@ function viewRecipe(r) {
     rel.length ? h('div', { class: 'rel-list' }, rel.map(o => { const p = totals(o).portion; return h('button', { class: 'rel', onclick: () => go('r-' + o.id) }, thumb(o), h('div', { style: { minWidth: '0' } }, h('b', null, o.title || 'Ohne Titel'), h('span', { class: 'num' }, `${fmt(p.kcal)} kcal · ${fmt(p.protein)} g Protein`))); }))
       : h('p', { class: 'muted', style: { margin: 0 } }, 'Keine Verknüpfungen. Unter „Bearbeiten“ kannst du Varianten verbinden, z. B. Pancakes → Protein Pancakes mit Birne.')));
 
+  page.append(h('section', { class: 'rec-actions', 'aria-label': 'Aktionen' },
+    h('button', { class: 'act', id: 'btn-plan', onclick: () => openPlanDialog(r) }, h('span', { class: 'act-ic' }, icon('calendar')), h('span', { class: 'act-t' }, h('b', null, 'Zu einem Wochentag hinzufügen'), h('small', null, 'Im Wochenplan einplanen')), icon('next')),
+    h('button', { class: 'act', id: 'btn-shop', onclick: () => shopRecipe(r) }, h('span', { class: 'act-ic' }, icon('cart')), h('span', { class: 'act-t' }, h('b', null, 'Zutaten zur Einkaufsliste hinzufügen'), h('small', null, 'Mit Portionen und Vorrats-Abgleich')), icon('next')),
+    h('button', { class: 'act', id: 'btn-share', onclick: () => openExportDialog(r) }, h('span', { class: 'act-ic' }, icon('share')), h('span', { class: 'act-t' }, h('b', null, 'Rezept exportieren'), h('small', null, 'Als PDF speichern oder als Datei teilen')), icon('next')),
+    h('button', { class: 'link-btn act-dup', onclick: () => duplicate(r) }, icon('copy'), 'Rezept duplizieren')));
   wrap.append(page);
   return wrap;
 }
@@ -731,6 +731,14 @@ async function exportBackup(withPhotos = true) {
 }
 // Kompatibilität für ältere Aufrufe
 function exportJSON() { return exportBackup(true); }
+function openExportDialog(r) {
+  openDialog('Rezept exportieren', h('div', { class: 'rec-actions', style: { margin: '0', padding: '0', background: 'none', boxShadow: 'none' } },
+    h('button', { class: 'act', id: 'exp-pdf', onclick: () => { $('#dlg').close(); printRecipe(r); } }, h('span', { class: 'act-ic' }, icon('pdf')),
+      h('span', { class: 'act-t' }, h('b', null, 'Als PDF speichern'), h('small', null, 'Zum Ausdrucken oder Weitergeben. Im Druckmenü auf Teilen tippen und „In Dateien sichern“ wählen.'))),
+    h('button', { class: 'act', id: 'exp-file', onclick: () => { $('#dlg').close(); exportRecipe(r); } }, h('span', { class: 'act-ic' }, icon('share')),
+      h('span', { class: 'act-t' }, h('b', null, 'Als Rezept-Datei teilen'), h('small', null, 'Für die App: Wer die Datei importiert, bekommt das Rezept vollständig mit Foto.')))),
+    [h('button', { class: 'btn', onclick: () => $('#dlg').close() }, 'Abbrechen')]);
+}
 async function exportRecipe(r) {
   const rec = JSON.parse(JSON.stringify(r)); rec.links = []; delete rec.example;
   const data = { app: 'eriks-rezepte', type: 'rezept', version: 1, exportedAt: new Date().toISOString(), recipe: rec,
@@ -930,7 +938,7 @@ function editor(d, isNew) {
     if (d.image) img.append(h('img', { src: d.image, alt: '' }), h('div', { class: 'img-actions' },
       h('button', { class: 'btn', onclick: (e) => { e.stopPropagation(); pickImage(); } }, 'Ändern'),
       h('button', { class: 'btn', onclick: (e) => { e.stopPropagation(); d.image = ''; drawImg(); } }, 'Entfernen')));
-    else img.append(h('div', { class: 'ph' }, icon('image'), h('b', { style: { color: 'var(--fg)' } }, 'Foto hinzufügen'), 'Screenshot aus Instagram oder eigenes Foto. Auch per Einfügen (⌘V) oder Ziehen.'));
+    else img.append(h('div', { class: 'ph' }, icon('image'), h('b', { style: { color: 'var(--fg)' } }, 'Foto hinzufügen'), (matchMedia('(pointer: coarse)').matches ? 'Foto aufnehmen oder aus der Mediathek wählen.' : 'Screenshot aus Instagram oder eigenes Foto. Auch per Einfügen (⌘V) oder Ziehen.')));
   };
   onImagePicked = async (f) => { d.image = await resizeImage(f); drawImg(); };
   const pickImage = () => $('#file-img').click();
@@ -1012,7 +1020,7 @@ function editor(d, isNew) {
       const row = h('div', { class: 'ing-row', 'data-idx': idx },
         h('label', { class: 'c-opt', title: 'Optional: passt gut, ist aber nicht nötig' },
           h('input', { type: 'checkbox', class: 'check square', checked: ing.optional, 'aria-label': 'Optional', onchange: (e) => { ing.optional = e.target.checked; updateSum(); } }),
-          h('span', { class: 'opt-lbl' }, 'opt.')),
+          h('span', { class: 'opt-lbl' }, 'Zutat optional')),
         h('input', { class: 'field c-name', value: ing.name, placeholder: 'z. B. Magerquark', 'aria-label': 'Zutat', list: 'ing-names', oninput: (e) => { ing.name = e.target.value; } }),
         amtIn,
         h('select', { class: 'field c-unit', 'aria-label': 'Einheit', onchange: (e) => { ing.unit = e.target.value; updateSum(); } },
@@ -1134,8 +1142,7 @@ function editor(d, isNew) {
     h('datalist', { id: 'spice-lib' }, SPICE_LIB.map(n => h('option', { value: n })))));
   page.append(h('div', { class: 'form-sec' }, h('span', { class: 'cap' }, 'Zubereitung'),
     h('div', { class: 'group' }, stepBox,
-      h('div', { class: 'grp-actions' }, h('button', { class: 'btn', id: 'btn-add-step', onclick: () => { d.steps.push(''); drawSteps(); resync(); const t = stepBox.querySelectorAll('textarea'); t[t.length - 1].focus(); } }, icon('plus'), 'Schritt'),
-        h('span', { class: 'muted', style: { fontSize: '13px', alignSelf: 'center' } }, '⌘/Strg + Enter fügt einen Schritt darunter ein.')))));
+      h('div', { class: 'grp-actions' }, h('button', { class: 'btn', id: 'btn-add-step', onclick: () => { d.steps.push(''); drawSteps(); resync(); const t = stepBox.querySelectorAll('textarea'); t[t.length - 1].focus(); } }, icon('plus'), 'Schritt')))));
   stepBox.addEventListener('focusout', resync);
 
   // Verknüpfungen
@@ -1425,13 +1432,13 @@ function weekPage() {
   const label = state.weekOffset === 0 ? 'Diese Woche' : state.weekOffset === 1 ? 'Nächste Woche' : state.weekOffset === -1 ? 'Letzte Woche' : '';
   const wrap = h('div', { class: 'tp' });
   wrap.append(h('div', { class: 'tp-head' },
-    h('div', null, h('h1', null, 'Eriks Wochenplanung'),
+    h('div', null, h('h1', null, 'Wochenplanung'),
       h('div', { class: 'sub num', id: 'wk-range' }, `${label ? label + ' · ' : ''}${WD[start.getDay()].slice(0, 2)} ${fmtDM(start)} – ${WD[end.getDay()].slice(0, 2)} ${fmtDM(end)} ${end.getFullYear()}`)),
     h('div', { class: 'tp-actions' },
       h('div', { class: 'week-nav' },
-        h('button', { class: 'icon-btn', id: 'wk-prev', 'aria-label': 'Vorherige Woche', onclick: () => { state.weekOffset--; rerenderTab(); } }, icon('back')),
-        h('button', { class: 'btn', id: 'wk-today', disabled: state.weekOffset === 0, onclick: () => { state.weekOffset = 0; rerenderTab(); } }, 'Heute'),
-        h('button', { class: 'icon-btn', id: 'wk-next', 'aria-label': 'Nächste Woche', onclick: () => { state.weekOffset++; rerenderTab(); } }, icon('next'))),
+        h('button', { class: 'icon-btn', id: 'wk-prev', 'aria-label': 'Vorherige Woche', onclick: () => { state.weekOffset--; state.dayKey = null; rerenderTab(); } }, icon('back')),
+        h('button', { class: 'btn', id: 'wk-today', disabled: state.weekOffset === 0 && (!state.dayKey || state.dayKey === dkey(new Date())), onclick: () => { state.weekOffset = 0; state.dayKey = null; rerenderTab(); } }, 'Heute'),
+        h('button', { class: 'icon-btn', id: 'wk-next', 'aria-label': 'Nächste Woche', onclick: () => { state.weekOffset++; state.dayKey = null; rerenderTab(); } }, icon('next'))),
       h('label', { class: 'muted', style: { fontSize: '13px', display: 'flex', gap: '6px', alignItems: 'center' } }, 'Woche beginnt am',
         h('select', { class: 'field', id: 'wk-start', style: { width: 'auto', padding: '5px 8px' }, onchange: (e) => { Settings.set('weekStart', +e.target.value); rerenderTab(); } },
           [[6, 'Samstag'], [0, 'Sonntag'], [1, 'Montag']].map(([v, l]) => h('option', { value: v, selected: Settings.get('weekStart', 6) === v }, l)))),
@@ -1440,7 +1447,25 @@ function weekPage() {
     tile(withRec.length ? fmt(avg('kcal')) + ' kcal' : '–', 'Ø pro Tag (Tage mit Rezepten)'),
     tile(withRec.length ? fmt(avg('protein')) + ' g' : '–', 'Ø Protein pro Tag'),
     tile(String(sportDays), 'Tage mit Sport')));
-  wrap.append(h('div', { class: 'days' }, days.map(dayCard)));
+  const todayIdx = days.findIndex(x => dkey(x) === dkey(new Date()));
+  let idx = days.findIndex(x => dkey(x) === state.dayKey);
+  if (idx < 0) idx = todayIdx >= 0 ? todayIdx : 0;
+  const strip = h('div', { class: 'day-strip', role: 'tablist', 'aria-label': 'Tag wählen' }, days.map((x, i) => {
+    const dd = datas[i];
+    return h('button', { class: 'ds' + (i === idx ? ' on' : '') + (i === todayIdx ? ' is-today' : ''), role: 'tab', 'data-ds': i, 'aria-label': WD[x.getDay()] + ' ' + fmtDM(x),
+      onclick: () => { const c = daysEl.children[i]; daysEl.scrollTo({ left: c.offsetLeft - daysEl.firstElementChild.offsetLeft, behavior: 'smooth' }); } },
+      h('small', null, WD[x.getDay()].slice(0, 2)), h('b', { class: 'num' }, String(x.getDate())),
+      h('i', { class: 'ds-dot' + (dd.shift ? ' s-' + dd.shift : dd.place ? ' s-ort' : '') }));
+  }));
+  const daysEl = h('div', { class: 'days', id: 'days' }, days.map(dayCard));
+  const mark = (i) => { state.dayKey = dkey(days[i]); strip.querySelectorAll('.ds').forEach((b, j) => b.classList.toggle('on', j === i)); };
+  let raf = 0;
+  daysEl.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
+    const w = daysEl.firstElementChild.getBoundingClientRect().width + 12;
+    if (daysEl.scrollWidth > daysEl.clientWidth + 4) mark(Math.max(0, Math.min(6, Math.round(daysEl.scrollLeft / w))));
+  }); }, { passive: true });
+  wrap.append(strip, daysEl);
+  queueMicrotask(() => { const c = daysEl.children[idx]; if (c && daysEl.scrollWidth > daysEl.clientWidth + 4) daysEl.scrollLeft = c.offsetLeft - daysEl.firstElementChild.offsetLeft; });
   return wrap;
 }
 
@@ -1450,22 +1475,32 @@ function dayCard(date) {
   const save = (focusId) => { persist('plan'); rerenderTab(focusId); };
   const card = h('article', { class: 'day' + (isToday ? ' today' : ''), 'data-day': key });
   card.append(h('div', { class: 'day-head' }, h('h3', null, WD[date.getDay()], isToday ? h('span', { class: 'today-pill' }, 'Heute') : null), h('span', { class: 'dt num' }, fmtDM(date))));
-  card.append(h('div', { class: 'day-sec', style: { borderTop: '0', paddingTop: '6px' } }, h('div', { class: 'sec-lab' }, 'Dienst oder Ort'),
-    h('div', { class: 'shifts', role: 'group', 'aria-label': 'Dienst' },
-      SHIFTS.map(sh => h('button', {
-        class: `shift s-${sh.k}` + (d.shift === sh.k ? ' on' : ''), 'aria-pressed': d.shift === sh.k ? 'true' : 'false', 'data-shift': sh.k,
-        onclick: () => { d.shift = d.shift === sh.k ? '' : sh.k; if (d.shift) d.place = ''; save(); } }, sh.label)),
-      h('label', { class: 'place' + (d.place ? ' on' : ''), title: 'Statt eines Dienstes, z. B. wenn du deine Familie besuchst' }, icon('pin'),
-        h('input', { value: d.place, 'data-place': key, placeholder: 'Eigener Eintrag, z. B. Urlaub', 'aria-label': 'Eigener Eintrag statt Dienst',
-          onchange: (e) => { d.place = e.target.value.trim(); if (d.place) d.shift = ''; save(); },
-          onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); } })))));
+  const placeMode = !d.shift && (d.place || state.placeOpen === key);
+  const workVal = d.shift || (placeMode ? '__ort' : '');
+  card.append(h('div', { class: 'day-sec', style: { borderTop: '0', paddingTop: '6px' } }, h('div', { class: 'sec-lab' }, 'Arbeit'),
+    h('div', { class: 'work-row' },
+      h('label', { class: 'work-sel' + (d.shift ? ` on s-${d.shift}` : placeMode ? ' on s-ort' : '') },
+        icon(d.shift === 'nacht' || d.shift === 'fruehnacht' ? 'moon' : placeMode ? 'pin' : 'sunrise'),
+        h('select', { 'data-work': key, 'aria-label': 'Arbeit an diesem Tag', onchange: (e) => {
+          const v = e.target.value;
+          if (v === '__ort') { d.shift = ''; state.placeOpen = key; save('place-' + key); }
+          else { d.shift = v; d.place = ''; state.placeOpen = null; save(); }
+        } },
+          h('option', { value: '', selected: workVal === '' }, 'Kein Dienst'),
+          SHIFTS.map(sh => h('option', { value: sh.k, selected: workVal === sh.k }, sh.label)),
+          h('option', { value: '__ort', selected: workVal === '__ort' }, 'Eigener Eintrag …'))),
+      placeMode ? h('label', { class: 'place' + (d.place ? ' on' : '') }, icon('pin'),
+        h('input', { value: d.place, id: 'place-' + key, 'data-place': key, placeholder: 'z. B. Urlaub, Familie', 'aria-label': 'Eigener Eintrag statt Dienst', enterkeyhint: 'done',
+          onchange: (e) => { d.place = e.target.value.trim(); if (d.place) d.shift = ''; else state.placeOpen = null; save(); },
+          onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); } })) : null)));
 
   // Mahlzeiten
   const ms = h('div', { class: 'day-sec' }, h('div', { class: 'sec-row' }, h('span', { class: 'sec-lab' }, 'Mahlzeiten'), h('span', { class: 'prep-lab' }, 'Vorbereitet?')));
   d.meals.forEach((m, i) => {
     const typeEl = i < 2 ? h('span', { class: 'mt' }, m.type)
-      : h('select', { class: 'mt-sel', 'aria-label': 'Art der Mahlzeit', onchange: (e) => { m.type = e.target.value; save(); } },
-        EXTRA_TYPES.map(t => h('option', { value: t, selected: m.type === t }, t)));
+      : h('label', { class: 'mt mt-pick', title: 'Art ändern' }, h('span', null, m.type), icon('down'),
+        h('select', { class: 'mt-sel', 'aria-label': 'Art der Mahlzeit', onchange: (e) => { m.type = e.target.value; save(); } },
+          EXTRA_TYPES.map(t => h('option', { value: t, selected: m.type === t }, t))));
     const r = m.recipeId && byId(m.recipeId);
     let content;
     if (r) {
@@ -1485,7 +1520,7 @@ function dayCard(date) {
           : filled ? h('button', { class: 'mini del', 'aria-label': 'Leeren', onclick: () => { m.recipeId = ''; m.text = ''; save(); } }, icon('x')) : null)));
   });
   if (d.meals.length < MAX_MEALS) ms.append(h('button', { class: 'link-btn', style: { alignSelf: 'flex-start' }, 'data-addmeal': key,
-    onclick: () => { d.meals.push({ id: uid(), type: d.meals.length === 2 ? 'Abendessen' : 'Snack' }); save(); } }, `+ Mahlzeit (${d.meals.length}/${MAX_MEALS})`));
+    onclick: () => { d.meals.push({ id: uid(), type: d.meals.length === 2 ? 'Abendessen' : 'Snack' }); save(); } }, '+ Mahlzeit'));
   card.append(ms);
 
   // Termine
@@ -1543,10 +1578,11 @@ function renderReminder() {
 function openDayInWeek(date) {
   const diff = Math.round((date - weekStartDate(0)) / 864e5);
   state.weekOffset = Math.floor(diff / 7);
+  state.dayKey = dkey(date);
   go('woche');
   setTimeout(() => {
     const c = document.querySelector(`[data-day="${dkey(date)}"]`);
-    if (c) { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); }
+    if (c) { if (!matchMedia('(max-width: 760px)').matches) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); }
   }, 60);
 }
 
