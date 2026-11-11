@@ -836,6 +836,91 @@ body::after { height: calc(66px + max(10px, calc(env(safe-area-inset-bottom, 0px
 .duty-row { display: flex; gap: 6px; align-items: center; }
 .duty-row .field { flex: 1; min-width: 0; }
 
+/* ===== Runde 11 ===== */
+:root { --bar-gap: 14px; --bar-h: 66px; --bar-space: calc(var(--bar-gap) + var(--bar-h) + 16px); }
+/* Untere Leiste: überall gleicher Abstand zum Rand */
+#tabbar { left: var(--bar-gap); right: var(--bar-gap); bottom: var(--bar-gap); width: auto; max-width: 560px; margin: 0 auto; transform: none; height: var(--bar-h); border-radius: calc(var(--bar-h) / 2); }
+body::after { height: calc(var(--bar-gap) + var(--bar-h) + 16px); }
+/* Inhalte laufen hinter den durchscheinenden Leisten weiter */
+#app, #tabpage { height: 100%; }
+#main { padding-bottom: var(--bar-space); }
+.tp { padding-bottom: calc(var(--bar-space) + 20px); }
+.side-foot { margin-bottom: var(--bar-space); }
+body::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: env(safe-area-inset-top, 0px); background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); z-index: 50; pointer-events: none; }
+#toast.toast { bottom: calc(var(--bar-gap) + var(--bar-h) + 34px); z-index: 70; }
+.reminder.reminder { bottom: calc(var(--bar-gap) + var(--bar-h) + 30px); }
+/* Überschriften etwas tiefer */
+.tp { padding-top: 22px; }
+.brand { padding-top: 16px; }
+
+@media (max-width: 600px) {
+  .tp-hero-head { align-items: start; }
+  .tp-hero-head > .shelf-wrap { margin-top: -10px; }
+  .tp-hero-head h1 { padding-top: 14px; }
+}
+/* Rezeptliste */
+.list-item .thumb.emo, .thumb.emo { font: 400 26px/1 var(--font); }
+.rel .thumb.emo { font-size: 22px; } .meal-rec .thumb.emo { font-size: 17px; } .link-opt .thumb.emo { font-size: 18px; }
+.hero .thumb.emo { font-size: 64px; }
+.list-item .m .kc { color: var(--fg); font-weight: 700; }
+
+/* Zeiten: vier Kacheln */
+.times { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 600px) { .times { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.time.zero b, .time.zero small { color: var(--fg-3); }
+.time.zero b { font-weight: 500; }
+
+/* Gewürze: Menge zuerst */
+.spice-chip b { font-weight: 600; }
+
+/* Einkauf aus Rezept: Menge in einer Zeile */
+.preview td.r { white-space: nowrap; }
+.preview .pbadge { white-space: nowrap; }
+
+/* Jetzt kochen */
+.cook-go { width: 100%; justify-content: center; height: 50px; font-size: 16px; border-radius: 14px; margin-top: 14px; }
+.cook { position: fixed; inset: 0; z-index: 80; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; padding: calc(env(safe-area-inset-top, 0px) + 10px) max(18px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 14px) max(18px, env(safe-area-inset-left, 0px)); }
+body.cooking #tabbar, body.cooking::after, body.cooking .reminder { display: none; }
+.cook-top { display: flex; align-items: center; gap: 12px; }
+.cook-dots { flex: 1; display: flex; gap: 4px; }
+.cook-dots i { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.cook-dots i.done { background: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.cook-dots i.on { background: var(--accent); }
+.cook-body { flex: 1; overflow-y: auto; padding: 22px 2px; display: flex; flex-direction: column; gap: 16px; }
+.cook-k { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.cook-t { margin: 0; font: 600 30px/1.15 var(--font-display); }
+.cook-step { margin: 0; font: 500 clamp(24px, 6.6vw, 34px)/1.35 var(--font); text-wrap: pretty; }
+.cook-for { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.cook-ing { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 17px; }
+.cook-ing.big { font-size: 19px; gap: 9px; }
+.cook-ing li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
+.cook-ing .ca { color: var(--fg-2); font-weight: 600; text-align: right; }
+.cook-ing em { color: var(--fg-3); font-style: normal; font-size: .85em; }
+.cook-nav { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; }
+.cook-nav .btn { height: 56px; justify-content: center; font-size: 17px; border-radius: 16px; }
+
+/* Wochenplanung */
+.ds.free { background: var(--surface); }
+.ds.free b { color: var(--fg); }
+
+/* Mahlzeit wählen */
+#pick-text.chosen { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--leaf-soft); }
+.pick-list .rel { border: 1.5px solid transparent; }
+.pick-list .rel.sel { border-color: var(--accent); background: var(--leaf-soft); }
+
+/* Dialoge passen aufs iPhone (zur Not scrollen) */
+dialog, .dlg { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px); }
+.dlg-body { min-height: 0; overscroll-behavior: contain; }
+
+/* Vorrat: Ziehen */
+.pitem { grid-template-columns: 22px 26px minmax(0, 1fr) auto auto; padding-left: 4px; }
+.grip { border: 0; background: transparent; color: var(--fg-3); width: 22px; height: 34px; display: grid; place-items: center; padding: 0; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.grip svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+.pitem.dragging { opacity: .35; }
+.drag-ghost { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none; background: var(--surface); border-radius: 12px; box-shadow: 0 14px 34px rgba(38, 38, 36, .22); border: 0; }
+body.drag-active, body.drag-active * { cursor: grabbing !important; -webkit-user-select: none; user-select: none; }
+.pcat.drop-on { outline: 2px solid var(--accent); outline-offset: 2px; background: color-mix(in srgb, var(--leaf-soft) 50%, var(--surface)); }
+
 /* Erinnerung „Essen schon vorgekocht?“ */
 .reminder { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabh) + 8px + env(safe-area-inset-bottom, 0px)); width: min(560px, calc(100vw - 28px)); z-index: 41; background: var(--ink); color: var(--on-ink); border-radius: 18px; padding: 12px 12px 12px 14px; display: flex; gap: 12px; align-items: center; box-shadow: 0 12px 34px rgba(38, 38, 36, .22); }
 .reminder .ri { width: 38px; height: 38px; border-radius: 11px; background: color-mix(in srgb, var(--on-ink) 12%, transparent); color: var(--oak); display: grid; place-items: center; flex: none; }

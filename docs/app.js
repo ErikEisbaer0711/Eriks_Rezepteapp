@@ -62,6 +62,8 @@ function h(tag, attrs, ...kids) {
 }
 const ICONS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
+  grip: '<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>',
+  flame: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.7 2.2-4.8.2 1.6 1 2.6 2.1 3C11 8.7 11 6 12 3z"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   back: '<path d="m15 18-6-6 6-6"/>',
@@ -134,9 +136,28 @@ function thumb(r, cls = '') {
   else {
     const [bgc, fgc] = NATURE_TONES[hueOf(r.title) % NATURE_TONES.length];
     el.style.background = bgc; el.style.color = fgc;
-    el.textContent = (r.title || '?').trim().charAt(0).toUpperCase();
+    el.textContent = recipeEmoji(r); el.classList.add('emo');
   }
   return el;
+}
+const EMOJI_RULES = [
+  [/pancake|pfannkuchen|crepe|waffel/, '🥞'], [/overnight|oats|porridge|haferbrei|müsli|granola/, '🥣'], [/bowl|skyr|quark|joghurt|yogurt/, '🥣'],
+  [/chili|scharf/, '🌶️'], [/curry|dal\b|masala/, '🍛'], [/teriyaki|wok|reis|risotto|sushi|bowl/, '🍚'], [/ramen|udon|nudelsuppe/, '🍜'],
+  [/pasta|nudel|spaghetti|lasagne|gnocchi|schupfnudel/, '🍝'], [/pizza|flammkuchen/, '🍕'], [/burger/, '🍔'], [/wrap|burrito|döner|fajita/, '🌯'], [/taco/, '🌮'],
+  [/suppe|eintopf|brühe|stew/, '🍲'], [/salat/, '🥗'], [/hähnchen|huhn|chicken|pute|geflügel/, '🍗'], [/steak|rind|hack|fleisch|bolognese/, '🥩'],
+  [/lachs|fisch|thunfisch|garnele|shrimp/, '🐟'], [/ei\b|eier|omelett|rührei|shakshuka/, '🍳'], [/tofu|tempeh/, '🥢'], [/ofen|blech|gemüse|brokkoli|zucchini/, '🥦'],
+  [/kartoffel|pommes|wedges/, '🥔'], [/brot|toast|sandwich|bagel|brötchen/, '🍞'], [/shake|smoothie/, '🥤'], [/kuchen|torte|muffin|brownie|cookie|keks|cheesecake/, '🍰'],
+  [/pudding|mousse|creme|dessert|eis\b/, '🍮'], [/schoko|kakao/, '🍫'], [/birne/, '🍐'], [/apfel|rübli|karotte/, '🍎'], [/banane/, '🍌'], [/beere|blaubeer|himbeer|erdbeer/, '🫐'],
+];
+function recipeEmoji(r) {
+  if (r.emoji) return r.emoji;
+  const t = [r.title, r.subtitle].join(' ').toLowerCase();
+  for (const [re, e] of EMOJI_RULES) if (re.test(t)) return e;
+  const tg = r.tags || [];
+  if (tg.includes('Frühstück')) return '🥣';
+  if (tg.includes('Dessert') || tg.includes('Süß')) return '🍯';
+  if (tg.includes('Snack')) return '🥨';
+  return '🍽️';
 }
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400); }
 
@@ -215,7 +236,7 @@ const Settings = {
 /* ---------- Datenmodell ---------- */
 function newRecipe() {
   return {
-    id: uid(), title: '', subtitle: '', source: '', image: '', servings: 1, prepTime: '', prepMin: '', cookMin: '', totalMin: '', weight: '', warnings: [], warnText: '', ingMacros: true,
+    id: uid(), title: '', subtitle: '', source: '', image: '', servings: 1, prepTime: '', prepMin: '', cookMin: '', restMin: '', totalMin: '', emoji: '', weight: '', warnings: [], warnText: '', ingMacros: true,
     tags: [], ingredients: [newIng()], macroMode: 'auto', manual: { kcal: '', carbs: '', fat: '', protein: '' },
     spiceGroups: [], steps: [''], notes: '', links: [], createdAt: Date.now(), updatedAt: Date.now(),
   };
@@ -231,6 +252,7 @@ function normalize(r) {
   out.links = Array.isArray(r.links) ? r.links : [];
   out.manual = Object.assign({ kcal: '', carbs: '', fat: '', protein: '' }, r.manual || {});
   if (r.prepMin === undefined && r.prepTime) out.prepMin = parseNum(r.prepTime) || '';
+  out.emoji = typeof out.emoji === 'string' ? [...out.emoji].slice(0, 4).join('') : '';
   out.tags = [...new Set(out.tags.map(t => t === 'Herzhaft' ? 'Deftig' : t))];
   out.warnings = Array.isArray(r.warnings) ? r.warnings : [];
   if (r.ingMacros === undefined) out.ingMacros = r.macroMode !== 'manual';
@@ -282,8 +304,8 @@ function densityOf(r, inclOpt = false) {
 function volBucket(r) { const dn = densityOf(r); return dn == null ? null : volLevel(dn).bucket; }
 function volBadge(dn) { const lv = volLevel(dn); return h('span', { class: 'vol-badge lv-' + lv.n }, `${lv.emoji} ${lv.label}`); }
 function timesOf(r) {
-  const prep = parseNum(r.prepMin), cook = parseNum(r.cookMin), man = parseNum(r.totalMin);
-  return { prep, cook, total: man || prep + cook, auto: !man };
+  const prep = parseNum(r.prepMin), cook = parseNum(r.cookMin), rest = parseNum(r.restMin), man = parseNum(r.totalMin);
+  return { prep, cook, rest, total: man || prep + cook + rest, auto: !man };
 }
 function fmtMin(m) { m = Math.round(m); if (m < 60) return `${m} Min.`; const hh = Math.floor(m / 60), mm = m % 60; return `${hh} Std.${mm ? ' ' + mm + ' Min.' : ''}`; }
 function warnings(r) {
@@ -364,7 +386,7 @@ function render() {
     if (head) {
       head.classList.add('tp-hero-head'); head.insertBefore(h('div', { class: 'shelf-wrap', html: shelfSVG(tab) }), head.children[1] || null);
       let act = head.querySelector('.tp-actions'); if (!act) { act = h('div', { class: 'tp-actions' }); head.append(act); }
-      act.append(h('button', { class: 'icon-btn gear', id: 'btn-settings', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('gear')));
+      if (tab === 'woche') act.append(h('button', { class: 'icon-btn gear', id: 'btn-settings', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('gear')));
     }
     if (tab === 'vorrat') applyPantryFilter();
     renderReminder();
@@ -460,8 +482,7 @@ function renderSidebar(rt) {
   sb.append(h('div', { class: 'side-foot' },
     h('span', { class: 'bk-hint' + (bs.warn || Store.mode === 'memory' ? ' warn' : ''), id: 'bk-hint' }, Store.mode === 'memory' ? 'Achtung: nicht dauerhaft gespeichert' : bs.short),
     h('button', { class: 'link-btn', id: 'btn-import', onclick: () => $('#file-json').click() }, 'Importieren'),
-    h('button', { class: 'link-btn', id: 'btn-menu', onclick: openMenu }, 'Backup'),
-    h('button', { class: 'icon-btn gear', id: 'btn-settings-side', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('gear'))));
+    h('button', { class: 'link-btn', id: 'btn-menu', onclick: openMenu }, 'Backup')));
   if (keepFocus) { const q = $('#q'); q.focus(); try { q.setSelectionRange(selStart, selStart); } catch (e) {} }
 }
 // Suche: erst tippen lassen, dann nur die Liste neu aufbauen (das Eingabefeld bleibt unberührt)
@@ -477,12 +498,12 @@ function recipeList(rt, list) {
   const ul = h('div', { class: 'list', role: 'list', id: 'rlist' });
   if (!list.length) ul.append(h('div', { class: 'empty-list' }, state.recipes.length ? 'Keine Treffer. Suche oder Filter anpassen.' : 'Noch keine Rezepte. Tippe auf + und leg dein erstes Rezept an.'));
   for (const r of list) {
-    const p = totals(r).portion; const vb = volBucket(r); const ws = warnings(r);
+    const p = totals(r).portion;
     ul.append(h('button', { class: 'list-item' + (r.id === activeId ? ' active' : ''), role: 'listitem', onclick: () => go('r-' + r.id) },
       thumb(r),
       h('div', { style: { minWidth: '0' } },
-        h('div', { class: 't' }, r.title || 'Ohne Titel', ws.length ? h('span', { class: 'warn-dot', title: ws.map(w => w.text).join(' · ') }, '⚠️') : null),
-        h('div', { class: 'm num' }, vb ? VOL_BUCKETS[vb].emoji + ' ' : '', `${fmt(p.kcal)} kcal · `, h('b', null, `${fmt(p.protein)} g P`), ` · ${fmt(p.carbs)} KH · ${fmt(p.fat)} F`))));
+        h('div', { class: 't' }, r.title || 'Ohne Titel'),
+        h('div', { class: 'm num' }, h('b', { class: 'kc' }, `${fmt(p.kcal)} kcal`), ` · ${fmt(p.carbs)} KH · ${fmt(p.fat)} F · ${fmt(p.protein)} P`))));
   }
   return ul;
 }
@@ -540,8 +561,8 @@ function viewRecipe(r) {
   if (r.tags.length) page.append(h('div', { class: 'tags' }, r.tags.map(t => h('span', { class: 'chip soft' }, tagLabel(t)))));
   const tm = timesOf(r);
   if (tm.prep || tm.cook || tm.total) page.append(h('div', { class: 'times', id: 'times' },
-    [['Vorbereitung', tm.prep], ['Kochzeit', tm.cook], ['Gesamtdauer', tm.total]].map(([l, v], i) =>
-      h('div', { class: 'time' + (i === 2 ? ' total' : '') }, h('b', { class: 'num' }, v ? fmtMin(v) : '–'), h('small', null, l)))));
+    [['Vorbereitung', tm.prep], ['Kochzeit', tm.cook], ['Geh-/Ruhezeit', tm.rest], ['Gesamtdauer', tm.total]].map(([l, v], i) =>
+      h('div', { class: 'time' + (i === 3 ? ' total' : '') + (v ? '' : ' zero') }, h('b', { class: 'num' }, v ? fmtMin(v) : '0 Min.'), h('small', null, l)))));
   const ws = warnings(r);
   if (ws.length) page.append(h('section', { class: 'warn-card', id: 'warn-card' }, h('div', { class: 'warn-title' }, 'Hinweise'),
     h('ul', { class: 'warn-list' }, ws.map(w => h('li', { class: 'w-' + w.level }, h('span', { 'aria-hidden': 'true' }, w.emoji), h('span', null, w.text))))));
@@ -574,7 +595,7 @@ function viewRecipe(r) {
     const stepNo = parseInt(g.step, 10);
     spCard.append(h('div', { class: 'spice-group' },
       h('h4', null, g.name || 'Gewürze', stepNo ? h('em', null, `für Schritt ${stepNo}`) : null),
-      h('div', { class: 'spice-chips' }, g.spices.filter(s => s.name).map(s => h('span', { class: 'spice-chip' }, s.name, s.amount ? h('small', null, s.amount) : null)))));
+      h('div', { class: 'spice-chips' }, g.spices.filter(s => s.name).map(s => h('span', { class: 'spice-chip' }, s.amount ? h('b', null, s.amount + ' ') : null, s.name)))));
   }
   page.append(h('div', { class: 'two-col' }, ingCard, spCard));
 
@@ -587,7 +608,7 @@ function viewRecipe(r) {
     r.steps.forEach((s, idx) => {
       if (!s.trim()) return;
       const stepNo = r.steps.slice(0, idx + 1).filter(x => x.trim()).length;
-      const sp = r.spiceGroups.filter(g => parseInt(g.step, 10) === stepNo).flatMap(g => g.spices.filter(x => x.name).map(x => x.name + (x.amount ? ' ' + x.amount : '')));
+      const sp = r.spiceGroups.filter(g => parseInt(g.step, 10) === stepNo).flatMap(g => g.spices.filter(x => x.name).map(x => (x.amount ? x.amount + ' ' : '') + x.name));
       const li = h('li', { class: cook.steps.has(idx) ? 'done' : '', tabindex: '0', role: 'checkbox', 'aria-checked': cook.steps.has(idx) ? 'true' : 'false' },
         h('div', null, h('div', { class: 'st' }, s), sp.length ? h('div', { class: 'st-sp' }, sp.map(x => h('span', null, x))) : null));
       const tog = () => { cook.steps.has(idx) ? cook.steps.delete(idx) : cook.steps.add(idx); li.classList.toggle('done'); li.setAttribute('aria-checked', cook.steps.has(idx)); };
@@ -595,6 +616,7 @@ function viewRecipe(r) {
       ol.append(li);
     });
     stCard.append(ol);
+    stCard.append(h('button', { class: 'btn primary cook-go', id: 'btn-cook', onclick: () => openCookMode(r) }, icon('flame'), 'Jetzt kochen'));
   }
   page.append(stCard);
 
@@ -745,6 +767,66 @@ async function exportBackup(withPhotos = true) {
 }
 // Kompatibilität für ältere Aufrufe
 function exportJSON() { return exportBackup(true); }
+/* ---------- Jetzt kochen ---------- */
+const COOK_STOP = new Set(['light', 'frisch', 'frische', 'gehackt', 'gewürfelt', 'bio', 'dose', 'glas', 'packung', 'stück', 'prise', 'etwas', 'optional', 'oder', 'und', 'mit', 'ohne']);
+function ingKeys(name) {
+  const base = name.toLowerCase().split(' - ').pop();
+  const words = base.split(/[\s,()/–-]+/).filter(w => w.length >= 4 && !COOK_STOP.has(w));
+  return [...new Set(words.flatMap(w => [w, w.replace(/(en|n|e|s)$/, '')]).filter(w => w.length >= 4))];
+}
+function stepIngredients(r, text) {
+  const t = text.toLowerCase();
+  return r.ingredients.filter(i => i.name.trim() && ingKeys(i.name).some(k => t.includes(k)));
+}
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); }
+    else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && $('#cook')) keepAwake(true); });
+function openCookMode(r) {
+  const steps = r.steps.map(x => x.trim()).filter(Boolean);
+  const spicesFor = (n) => r.spiceGroups.filter(g => parseInt(g.step, 10) === n).flatMap(g => g.spices.filter(x => x.name));
+  const allSp = r.spiceGroups.flatMap(g => g.spices.filter(x => x.name));
+  const ings = r.ingredients.filter(i => i.name.trim());
+  let idx = 0; const total = steps.length + 1;
+  const ov = h('div', { id: 'cook', class: 'cook', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Kochmodus' });
+  const close = () => { keepAwake(false); ov.remove(); document.removeEventListener('keydown', onKey); document.body.classList.remove('cooking'); };
+  const onKey = (e) => { if (e.key === 'ArrowRight') goTo(idx + 1); if (e.key === 'ArrowLeft') goTo(idx - 1); if (e.key === 'Escape') close(); };
+  const ingLine = (i) => h('li', null, h('span', { class: 'ca num' }, fmtAmt(i.amount, i.unit) || '–'), h('span', null, i.name, i.optional ? h('em', null, ' (optional)') : null));
+  const spLine = (x) => h('li', null, h('span', { class: 'ca' }, x.amount || '–'), h('span', null, x.name));
+  const draw = () => {
+    let body;
+    if (idx === 0) {
+      body = [h('div', { class: 'cook-k' }, 'Bereitlegen'), h('h2', { class: 'cook-t' }, r.title || 'Rezept'),
+        h('ul', { class: 'cook-ing big' }, ings.map(ingLine), allSp.map(spLine))];
+    } else {
+      const text = steps[idx - 1]; const si = stepIngredients(r, text); const sp = spicesFor(idx);
+      body = [h('div', { class: 'cook-k' }, `Schritt ${idx} von ${steps.length}`), h('p', { class: 'cook-step' }, text),
+        si.length || sp.length ? h('div', { class: 'cook-for' }, h('div', { class: 'cook-k' }, 'Dafür brauchst du'), h('ul', { class: 'cook-ing' }, si.map(ingLine), sp.map(spLine))) : null];
+    }
+    ov.replaceChildren(
+      h('div', { class: 'cook-top' },
+        h('div', { class: 'cook-dots' }, [...Array(total)].map((_, i) => h('i', { class: i === idx ? 'on' : i < idx ? 'done' : '' }))),
+        h('button', { class: 'icon-btn', id: 'cook-close', 'aria-label': 'Kochmodus beenden', onclick: close }, icon('x'))),
+      h('div', { class: 'cook-body' }, body),
+      h('div', { class: 'cook-nav' },
+        h('button', { class: 'btn', id: 'cook-prev', disabled: idx === 0, onclick: () => goTo(idx - 1) }, icon('back'), 'Zurück'),
+        idx < total - 1 ? h('button', { class: 'btn primary', id: 'cook-next', onclick: () => goTo(idx + 1) }, idx === 0 ? 'Los geht’s' : 'Weiter', icon('next'))
+          : h('button', { class: 'btn primary', id: 'cook-done', onclick: () => { close(); toast('Guten Appetit!'); } }, 'Fertig')));
+  };
+  const goTo = (i) => { if (i < 0 || i >= total) return; idx = i; draw(); ov.querySelector('.cook-body').scrollTop = 0; };
+  let sx = null, sy = null;
+  ov.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  ov.addEventListener('touchend', (e) => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) goTo(idx + (dx < 0 ? 1 : -1)); });
+  document.addEventListener('keydown', onKey);
+  draw(); document.body.append(ov); document.body.classList.add('cooking');
+  keepAwake(true);
+}
+
 function openExportDialog(r) {
   openDialog('Rezept exportieren', h('div', { class: 'rec-actions', style: { margin: '0', padding: '0', background: 'none', boxShadow: 'none' } },
     h('button', { class: 'act', id: 'exp-pdf', onclick: () => { $('#dlg').close(); printRecipe(r); } }, h('span', { class: 'act-ic' }, icon('pdf')),
@@ -967,19 +1049,21 @@ function editor(d, isNew) {
   page.append(img);
 
   // Grunddaten
-  const autoTotalPh = () => { const sm = parseNum(d.prepMin) + parseNum(d.cookMin); return sm ? `automatisch: ${fmtMin(sm)}` : 'wird automatisch addiert'; };
+  const autoTotalPh = () => { const sm = parseNum(d.prepMin) + parseNum(d.cookMin) + parseNum(d.restMin); return sm ? `automatisch: ${fmtMin(sm)}` : 'wird automatisch addiert'; };
   const totalIn = h('input', { id: 'f-total', inputmode: 'numeric', value: d.totalMin, placeholder: autoTotalPh() });
-  const bind = (key, el) => { el.addEventListener('input', () => { d[key] = el.value; if (key === 'servings') updateSum(); if (key === 'prepMin' || key === 'cookMin') totalIn.placeholder = autoTotalPh(); }); return el; };
+  const bind = (key, el) => { el.addEventListener('input', () => { d[key] = el.value; if (key === 'servings') updateSum(); if (key === 'prepMin' || key === 'cookMin' || key === 'restMin') totalIn.placeholder = autoTotalPh(); }); return el; };
   page.append(h('div', { class: 'form-sec' },
     h('div', { class: 'group' },
       h('div', { class: 'row' }, bind('title', h('input', { id: 'f-title', class: 'title-input', placeholder: 'Rezepttitel', value: d.title, 'aria-label': 'Titel' }))),
       h('div', { class: 'row' }, bind('subtitle', h('input', { id: 'f-sub', placeholder: 'Kurzbeschreibung (optional)', value: d.subtitle, 'aria-label': 'Kurzbeschreibung' })))),
     h('div', { class: 'group' },
+      h('div', { class: 'row' }, h('label', { for: 'f-emoji' }, 'Emoji'), bind('emoji', h('input', { id: 'f-emoji', value: d.emoji, placeholder: `automatisch: ${recipeEmoji(Object.assign({}, d, { emoji: '' }))}`, maxlength: '8', autocomplete: 'off' }))),
       h('div', { class: 'row' }, h('label', { for: 'f-serv' }, 'Portionen'), bind('servings', h('input', { id: 'f-serv', inputmode: 'decimal', value: d.servings, placeholder: '1' }))),
       h('div', { class: 'row' }, h('label', { for: 'f-src' }, 'Quelle'), bind('source', h('input', { id: 'f-src', placeholder: 'Instagram-Link oder Name des Accounts', value: d.source })))),
     h('div', { class: 'group' },
       h('div', { class: 'row' }, h('label', { for: 'f-prep' }, 'Vorbereitung'), bind('prepMin', h('input', { id: 'f-prep', inputmode: 'numeric', placeholder: 'Minuten', value: d.prepMin }))),
       h('div', { class: 'row' }, h('label', { for: 'f-cook' }, 'Kochzeit'), bind('cookMin', h('input', { id: 'f-cook', inputmode: 'numeric', placeholder: 'Minuten', value: d.cookMin }))),
+      h('div', { class: 'row' }, h('label', { for: 'f-rest' }, 'Geh-/Ruhezeit'), bind('restMin', h('input', { id: 'f-rest', inputmode: 'numeric', placeholder: 'Minuten', value: d.restMin }))),
       h('div', { class: 'row' }, h('label', { for: 'f-total' }, 'Gesamtdauer'), bind('totalMin', totalIn)))));
 
   // Kategorien
@@ -1334,7 +1418,7 @@ function printRecipe(r) {
     h('h1', { class: 'pr-title' }, r.title || 'Ohne Titel'),
     r.subtitle ? h('p', { class: 'pr-sub' }, r.subtitle) : null,
     h('div', { class: 'pr-meta' }, h('span', null, `🍽️ ${fmt(T.servings)} ${T.servings === 1 ? 'Portion' : 'Portionen'}`),
-      tm.prep ? h('span', null, `🔪 Vorbereitung ${fmtMin(tm.prep)}`) : null, tm.cook ? h('span', null, `🍳 Kochzeit ${fmtMin(tm.cook)}`) : null, tm.total ? h('span', null, `⏱️ Gesamt ${fmtMin(tm.total)}`) : null,
+      tm.prep ? h('span', null, `🔪 Vorbereitung ${fmtMin(tm.prep)}`) : null, tm.cook ? h('span', null, `🍳 Kochzeit ${fmtMin(tm.cook)}`) : null, tm.rest ? h('span', null, `⏸️ Geh-/Ruhezeit ${fmtMin(tm.rest)}`) : null, tm.total ? h('span', null, `⏱️ Gesamt ${fmtMin(tm.total)}`) : null,
       r.source ? h('span', null, 'Quelle: ' + r.source) : null),
     r.tags.length ? h('div', { class: 'pr-tags' }, r.tags.map(t => h('span', null, tagLabel(t)))) : h('div', { style: { height: '4mm' } }),
     h('div', { class: 'pr-macros' },
@@ -1347,7 +1431,7 @@ function printRecipe(r) {
         h('ul', { class: 'pr-ing' }, ings.map(i => h('li', null, h('span', null, i.name, i.optional ? h('span', { class: 'pr-opt' }, 'optional') : null), h('span', null, fmtAmt(i.amount, i.unit)))))),
       h('div', null, h('h2', { class: 'pr-h' }, 'Gewürze'),
         groups.length ? groups.map(g => h('div', { class: 'pr-sg' }, h('b', null, (g.name || 'Gewürze') + (parseInt(g.step, 10) ? ` · Schritt ${parseInt(g.step, 10)}` : '')),
-          h('div', null, g.spices.filter(s => s.name).map(s => s.name + (s.amount ? ` (${s.amount})` : '')).join(', ')))) : h('p', { style: { color: '#6e6e73', margin: 0 } }, '–'))),
+          h('div', null, g.spices.filter(s => s.name).map(s => (s.amount ? s.amount + ' ' : '') + s.name).join(', ')))) : h('p', { style: { color: '#6e6e73', margin: 0 } }, '–'))),
     steps.length ? h('div', null, h('h2', { class: 'pr-h' }, 'Zubereitung'), h('ol', { class: 'pr-steps' }, steps.map(s => h('li', null, h('span', null, s))))) : null,
     r.notes.trim() ? h('div', { class: 'pr-block' }, h('h2', { class: 'pr-h' }, 'Sonstiges'), h('p', null, r.notes)) : null,
     rel.length ? h('div', { class: 'pr-block' }, h('h2', { class: 'pr-h' }, 'Passt dazu'), h('p', null, rel.map(o => o.title).join(' · '))) : null,
@@ -1456,12 +1540,11 @@ function weekPage() {
   const label = state.weekOffset === 0 ? 'Diese Woche' : state.weekOffset === 1 ? 'Nächste Woche' : state.weekOffset === -1 ? 'Letzte Woche' : '';
   const wrap = h('div', { class: 'tp' });
   wrap.append(h('div', { class: 'tp-head' },
-    h('div', null, h('h1', null, 'Wochenplanung'),
-      h('div', { class: 'sub num', id: 'wk-range' }, `${label ? label + ' · ' : ''}${WD[start.getDay()].slice(0, 2)} ${fmtDM(start)} – ${WD[end.getDay()].slice(0, 2)} ${fmtDM(end)} ${end.getFullYear()}`)),
+    h('div', null, h('h1', { 'data-range': `${fmtDM(start)}–${fmtDM(end)}` }, 'Wochenplanung')),
     h('div', { class: 'tp-actions' },
       h('div', { class: 'week-nav' },
         h('button', { class: 'icon-btn', id: 'wk-prev', 'aria-label': 'Vorherige Woche', onclick: () => { state.weekOffset--; state.dayKey = null; rerenderTab(); } }, icon('back')),
-        h('button', { class: 'btn', id: 'wk-today', disabled: state.weekOffset === 0 && (!state.dayKey || state.dayKey === dkey(new Date())), onclick: () => { state.weekOffset = 0; state.dayKey = null; rerenderTab(); } }, 'Heute'),
+        h('button', { class: 'btn', id: 'wk-today', disabled: state.weekOffset === 0 && (!state.dayKey || state.dayKey === dkey(new Date())), onclick: () => { state.weekOffset = 0; state.dayKey = null; rerenderTab(); } }, 'Aktuelle Woche'),
         h('button', { class: 'icon-btn', id: 'wk-next', 'aria-label': 'Nächste Woche', onclick: () => { state.weekOffset++; state.dayKey = null; rerenderTab(); } }, icon('next'))))));
 
   const todayIdx = days.findIndex(x => dkey(x) === dkey(new Date()));
@@ -1485,7 +1568,7 @@ function weekPage() {
   wrap.append(strip, daysEl);
   queueMicrotask(() => { const c = daysEl.children[idx]; if (c && daysEl.scrollWidth > daysEl.clientWidth + 4) daysEl.scrollLeft = c.offsetLeft - daysEl.firstElementChild.offsetLeft; });
 
-  wrap.append(h('button', { class: 'btn primary wk-shop', id: 'wk-shop', onclick: () => shopWeek(datas) }, icon('cart'), 'Woche einkaufen'));
+  wrap.append(h('button', { class: 'btn primary wk-shop', id: 'wk-shop', onclick: () => shopWeek(datas) }, icon('cart'), 'Für die Woche einkaufen'));
   wrap.append(h('div', { class: 'summary' },
     tile(withRec.length ? fmt(avg('kcal')) + ' kcal' : '–', 'Ø pro Tag (Tage mit Rezepten)'),
     tile(withRec.length ? fmt(avg('protein')) + ' g' : '–', 'Ø Protein pro Tag'),
@@ -1672,35 +1755,48 @@ function openDayInWeek(date) {
 }
 
 function openMealPicker(m) {
-  let q = '';
+  let q = ''; let pick = m.recipeId && byId(m.recipeId) ? m.recipeId : ''; let mode = pick ? 'recipe' : m.text ? 'text' : '';
   const list = h('div', { class: 'pick-list' });
   const portions = h('input', { class: 'field', id: 'pick-portions', inputmode: 'decimal', value: fmtIn(m.portions || 1), style: { width: '72px' } });
-  const done = () => { $('#dlg').close(); persist('plan'); rerenderTab(); };
+  const ok = h('button', { class: 'btn primary', id: 'pick-ok' }, 'Übernehmen');
+  const txt = h('input', { class: 'field', id: 'pick-text', value: m.text || '', placeholder: 'z. B. Kantine, Reste, Essen mit Freunden', enterkeyhint: 'done', autocomplete: 'off',
+    oninput: () => { mode = txt.value.trim() ? 'text' : (pick ? 'recipe' : ''); sync(); },
+    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } } });
+  const sync = () => {
+    txt.classList.toggle('chosen', mode === 'text');
+    list.querySelectorAll('.rel').forEach(b => b.classList.toggle('sel', mode === 'recipe' && b.dataset.pick === pick));
+    ok.disabled = !mode;
+  };
   const draw = () => {
     list.replaceChildren();
     const qq = q.trim().toLowerCase();
     const rs = state.recipes.filter(r => !qq || [r.title, ...r.tags].join(' ').toLowerCase().includes(qq)).sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
     if (!rs.length) list.append(h('p', null, 'Keine passenden Rezepte.'));
     rs.forEach(r => {
-      const p = totals(r).portion; const vb = volBucket(r);
-      list.append(h('button', { class: 'rel' + (m.recipeId === r.id ? ' sel' : ''), 'data-pick': r.id,
-        onclick: () => { m.recipeId = r.id; m.text = ''; m.portions = parseNum(portions.value) || 1; done(); } },
-        thumb(r), h('div', { style: { minWidth: '0' } }, h('b', null, r.title || 'Ohne Titel'), h('span', { class: 'num' }, `${vb ? VOL_BUCKETS[vb].emoji + ' ' : ''}${fmt(p.kcal)} kcal · ${fmt(p.protein)} g Protein`))));
+      const p = totals(r).portion;
+      list.append(h('button', { class: 'rel', 'data-pick': r.id, onclick: () => { pick = r.id; mode = 'recipe'; sync(); } },
+        thumb(r), h('div', { style: { minWidth: '0' } }, h('b', null, r.title || 'Ohne Titel'), h('span', { class: 'num' }, `${fmt(p.kcal)} kcal · ${fmt(p.protein)} g Protein`))));
     });
+    sync();
   };
-  const txt = h('input', { class: 'field', id: 'pick-text', value: m.text || '', placeholder: 'z. B. Indisch, Reste, Essen mit Freunden',
-    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); useText(); } } });
-  const useText = () => { const t = txt.value.trim(); if (!t) return; m.text = t; m.recipeId = ''; done(); };
+  const apply = () => {
+    if (mode === 'text') { const t = txt.value.trim(); if (!t) return; m.text = t; m.recipeId = ''; }
+    else if (mode === 'recipe' && pick) { m.recipeId = pick; m.text = ''; m.portions = parseNum(portions.value) || 1; }
+    else return;
+    $('#dlg').close(); persist('plan'); rerenderTab();
+  };
+  ok.onclick = apply;
   openDialog(`${m.type} planen`, [
+    h('span', { class: 'cap', style: { padding: '0' } }, 'Notiz'),
+    txt,
+    h('span', { class: 'cap', style: { padding: '0' } }, 'Oder ein Rezept'),
     h('div', { class: 'inline-add' },
-      h('input', { class: 'field', id: 'pick-q', type: 'search', placeholder: 'Rezept suchen', oninput: (e) => { q = e.target.value; draw(); } }),
+      h('input', { class: 'field', id: 'pick-q', type: 'text', inputmode: 'search', autocomplete: 'off', placeholder: 'Rezept suchen', oninput: (e) => { q = e.target.value; draw(); } }),
       h('label', { class: 'inline-opts', style: { flex: 'none' } }, 'Portionen', portions)),
     list,
-    h('span', { class: 'cap', style: { padding: '0' } }, 'Oder als Notiz'),
-    h('div', { class: 'inline-add' }, txt, h('button', { class: 'btn', id: 'pick-text-ok', onclick: useText }, 'Übernehmen')),
-  ], [h('button', { class: 'btn', onclick: () => $('#dlg').close() }, 'Abbrechen')]);
+  ], [h('button', { class: 'btn', onclick: () => $('#dlg').close() }, 'Abbrechen'), ok]);
   draw();
-  setTimeout(() => $('#pick-q') && $('#pick-q').focus(), 50);
+
 }
 
 function openPlanDialog(r) {
@@ -1766,9 +1862,9 @@ function matchPantry(name) {
 const inStock = (it) => !!it && (it.qty == null || it.qty > 0);
 function pantryBadge(it) {
   if (!it) return null;
-  if (it.qty == null) return h('span', { class: 'pbadge have', title: 'Vorrat: ' + it.name }, '🫙 im Vorrat');
-  if (it.qty > 0) return h('span', { class: 'pbadge have', title: 'Vorrat: ' + it.name }, `🫙 ${fmt(it.qty)}x im Vorrat`);
-  return h('span', { class: 'pbadge out', title: 'Vorrat: ' + it.name }, '🫙 Vorrat leer');
+  if (it.qty == null) return h('span', { class: 'pbadge have', title: 'Vorrat: ' + it.name }, '🫙 da');
+  if (it.qty > 0) return h('span', { class: 'pbadge have', title: 'Vorrat: ' + it.name }, `🫙 ${fmt(it.qty)}x`);
+  return h('span', { class: 'pbadge out', title: 'Vorrat: ' + it.name }, '🫙 leer');
 }
 function applyPantryFilter() {
   const q = (state.pq || '').trim().toLowerCase();
@@ -1802,7 +1898,7 @@ function addPantryCat() {
 }
 function pantryCat(c) {
   const items = state.pantry.items.filter(i => i.catId === c.id);
-  const box = h('section', { class: 'pcat', 'data-cat': c.name });
+  const box = h('section', { class: 'pcat', 'data-cat': c.name, 'data-catid': c.id });
   box.append(h('div', { class: 'pcat-head' }, h('span', { style: { fontSize: '20px' } }, c.emoji || '📦'), h('h3', null, c.name), h('span', { class: 'n' }, items.length),
     !items.length ? h('button', { class: 'mini del', 'aria-label': 'Kategorie löschen', onclick: () => { state.pantry.cats = state.pantry.cats.filter(x => x !== c); persist('pantry'); rerenderTab(); } }, icon('trash')) : null));
   items.forEach(it => box.append(pantryRow(it)));
@@ -1819,7 +1915,9 @@ function pantryCat(c) {
 }
 function pantryRow(it) {
   const setQ = (q) => { it.qty = q; persist('pantry'); rerenderTab(); };
-  return h('div', { class: 'pitem' + (it.qty === 0 ? ' empty' : ''), 'data-name': it.name.toLowerCase(), 'data-pid': it.id },
+  const row = h('div', { class: 'pitem' + (it.qty === 0 ? ' empty' : ''), 'data-name': it.name.toLowerCase(), 'data-pid': it.id });
+  row.append(
+    h('button', { class: 'grip', 'aria-label': `${it.name} in andere Kategorie ziehen`, title: 'Gedrückt halten und ziehen', 'data-grip': it.name, onpointerdown: (e) => startPantryDrag(e, it, row) }, icon('grip')),
     h('span', { class: 'em', 'aria-hidden': 'true' }, it.emoji || '·'),
     h('div', { style: { minWidth: '0' } },
       h('input', { class: 'nm', value: it.name, 'aria-label': 'Artikelname', onchange: (e) => { it.name = e.target.value.trim() || it.name; if (!it.emoji) it.emoji = guessEmoji(it.name); persist('pantry'); } }),
@@ -1834,6 +1932,36 @@ function pantryRow(it) {
         toast(inStock(it) ? `🛒 ${it.name} auf der Liste. Hinweis: Du hast noch ${it.qty == null ? 'etwas' : fmt(it.qty) + 'x'} daheim.` : `🛒 ${it.name} auf der Liste`);
       } }, icon('cart')),
       h('button', { class: 'mini del', 'aria-label': 'Aus dem Vorrat entfernen', onclick: () => { state.pantry.items = state.pantry.items.filter(x => x !== it); persist('pantry'); rerenderTab(); } }, icon('trash'))));
+  return row;
+}
+function startPantryDrag(e, it, row) {
+  if (e.button > 0) return;
+  e.preventDefault();
+  const r0 = row.getBoundingClientRect(); const dx = e.clientX - r0.left, dy = e.clientY - r0.top;
+  const ghost = row.cloneNode(true); ghost.classList.add('drag-ghost'); ghost.style.width = r0.width + 'px';
+  document.body.append(ghost); row.classList.add('dragging'); document.body.classList.add('drag-active');
+  const scroller = $('#tabpage'); let target = null; let lastY = e.clientY; let alive = true;
+  const place = (x, y) => {
+    ghost.style.transform = `translate(${x - dx}px, ${y - dy}px)`;
+    ghost.style.display = 'none'; const el = document.elementFromPoint(x, y); ghost.style.display = '';
+    const cat = el && el.closest('.pcat');
+    if (cat !== target) { target && target.classList.remove('drop-on'); target = cat; target && target.classList.add('drop-on'); }
+  };
+  const tick = () => { if (!alive) return; const H = innerHeight;
+    if (lastY < 90) scroller.scrollTop -= 10; else if (lastY > H - 150) scroller.scrollTop += 10;
+    requestAnimationFrame(tick); };
+  const move = (ev) => { lastY = ev.clientY; place(ev.clientX, ev.clientY); };
+  const end = (ev) => {
+    alive = false;
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+    ghost.remove(); row.classList.remove('dragging'); document.body.classList.remove('drag-active'); target && target.classList.remove('drop-on');
+    if (ev.type === 'pointerup' && target && target.dataset.catid && target.dataset.catid !== it.catId) {
+      const c = state.pantry.cats.find(x => x.id === target.dataset.catid);
+      it.catId = target.dataset.catid; persist('pantry'); rerenderTab(); toast(`${it.name} → ${c ? c.name : 'neue Kategorie'}`);
+    }
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+  place(e.clientX, e.clientY); requestAnimationFrame(tick);
 }
 
 /* =========================================================
