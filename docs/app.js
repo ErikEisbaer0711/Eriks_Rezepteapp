@@ -1,3 +1,4 @@
+window.APP_VERSION = '39f2413c45';
 'use strict';
 /* =========================================================
    Eriks Rezepte – lokale Rezept-App (eine Datei, offline)
@@ -1689,6 +1690,22 @@ function openPrepDialog(key) {
   dlg.addEventListener('close', () => { if (tabOf(route()) === 'woche') rerenderTab(); renderReminder(); }, { once: true });
 }
 
+/* ---------- Updates ---------- */
+async function checkForUpdate() {
+  if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) { toast('Updates gibt es nur in der installierten App.'); return; }
+  toast('Suche nach Updates …');
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) { await reg.update(); await new Promise(r => setTimeout(r, 1500)); }
+    const w = reg && (reg.waiting || reg.installing);
+    if (w) { w.postMessage('skip-waiting'); setTimeout(() => location.reload(), 1200); return; }
+    // Sicherheitsnetz: Programmdateien neu laden (deine Daten bleiben erhalten)
+    const keys = await caches.keys(); await Promise.all(keys.filter(k => k.startsWith('eriks-rezepte-')).map(k => caches.delete(k)));
+    if (reg) await reg.unregister();
+    location.reload();
+  } catch (e) { location.reload(); }
+}
+
 /* ---------- Einstellungen ---------- */
 function openSettings() {
   let irregular = irregularWork();
@@ -1708,6 +1725,9 @@ function openSettings() {
         h('div', { class: 'duty-row' },
           h('input', { class: 'field', id: 'duty-new', placeholder: 'Neuer Dienst, z. B. Bereitschaft', 'aria-label': 'Neuer Dienst', enterkeyhint: 'done', onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); addDuty(); } } }),
           h('button', { class: 'go-btn', 'aria-label': 'Dienst hinzufügen', id: 'duty-add', onclick: addDuty }, icon('plus')))) : null),
+    h('section', { class: 'bk' }, h('h4', null, 'App'),
+      h('p', { class: 'bk-note', id: 'app-version' }, `Version ${window.APP_VERSION || 'lokal'}`),
+      h('div', { class: 'bk-row' }, h('button', { class: 'btn', id: 'btn-update', onclick: checkForUpdate }, 'Nach Updates suchen'))),
     h('section', { class: 'bk' }, h('h4', null, 'Daten'),
       h('p', { class: 'bk-note' }, backupStatus().long),
       h('div', { class: 'bk-row' }, h('button', { class: 'btn', onclick: () => openMenu() }, 'Backup & Daten'))));
@@ -2290,12 +2310,15 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
       h('button', { onclick: () => w.postMessage('skip-waiting') }, 'Aktualisieren'));
     document.body.append(bar);
   };
-  navigator.serviceWorker.register('./sw.js').then(reg => {
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(reg => {
     if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
       w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
     });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    window.addEventListener('pageshow', check); window.addEventListener('focus', check);
+    setInterval(check, 30 * 60 * 1000);
   }).catch(() => {});
 }

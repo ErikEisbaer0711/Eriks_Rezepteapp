@@ -29,13 +29,16 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
       h('button', { onclick: () => w.postMessage('skip-waiting') }, 'Aktualisieren'));
     document.body.append(bar);
   };
-  navigator.serviceWorker.register('./sw.js').then(reg => {
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(reg => {
     if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
       w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
     });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    window.addEventListener('pageshow', check); window.addEventListener('focus', check);
+    setInterval(check, 30 * 60 * 1000);
   }).catch(() => {});
 }
 '''
@@ -48,6 +51,7 @@ if os.path.isdir(OUT):
 os.makedirs(os.path.join(OUT, 'icons'), exist_ok=True)
 
 ver = hashlib.sha256((css + js + body).encode()).hexdigest()[:10]
+js = f"window.APP_VERSION = '{ver}';\n" + js
 open(os.path.join(OUT, 'styles.css'), 'w', encoding='utf-8').write(css)
 open(os.path.join(OUT, 'app.js'), 'w', encoding='utf-8').write(js)
 
@@ -111,7 +115,7 @@ self.addEventListener('fetch', (e) => {{
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   if (req.mode === 'navigate') {{
     // Seite: erst Netz (damit Updates ankommen), offline aus dem Speicher
-    e.respondWith(fetch(req).catch(() => caches.match('index.html', {{ ignoreSearch: true }})));
+    e.respondWith(fetch(req.url, {{ cache: 'no-store', credentials: 'same-origin' }}).catch(() => caches.match('index.html', {{ ignoreSearch: true }})));
     return;
   }}
   e.respondWith(caches.match(req).then(hit => hit || fetch(req)));
