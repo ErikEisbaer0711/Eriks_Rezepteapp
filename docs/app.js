@@ -1,4 +1,4 @@
-window.APP_VERSION = '39f2413c45';
+window.APP_VERSION = '165baa5b28';
 'use strict';
 /* =========================================================
    Eriks Rezepte – lokale Rezept-App (eine Datei, offline)
@@ -374,10 +374,18 @@ function onRoute() {
 }
 
 /* ---------- Rendern ---------- */
+// Hintergrund und Farbe der iPhone-Statusleiste passend zum Bereich
+const STATUS_COLORS = { main: ['#DAD4C0', '#26231F'], pantry: ['#CFC8A8', '#26231F'] };
+function setBackdrop(kind) {
+  document.body.classList.toggle('bg-pantry', kind === 'pantry');
+  const [light, dark] = STATUS_COLORS[kind];
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.content = (m.media || '').includes('dark') ? dark : light; });
+}
 function render() {
   const rt = route();
   const tab = tabOf(rt);
   renderTabbar(tab);
+  setBackdrop(tab === 'vorrat' || tab === 'einkauf' ? 'pantry' : 'main');
   $('#app').hidden = tab !== 'rezepte';
   $('#tabpage').hidden = tab === 'rezepte';
   if (tab !== 'rezepte') {
@@ -385,7 +393,7 @@ function render() {
     $('#tabpage').replaceChildren(tab === 'woche' ? weekPage() : tab === 'vorrat' ? pantryPage() : shopPage());
     const head = $('#tabpage .tp-head');
     if (head) {
-      head.classList.add('tp-hero-head'); head.insertBefore(h('div', { class: 'shelf-wrap', html: shelfSVG(tab) }), head.children[1] || null);
+      head.classList.add('tp-hero-head');
       let act = head.querySelector('.tp-actions'); if (!act) { act = h('div', { class: 'tp-actions' }); head.append(act); }
       if (tab === 'woche') act.append(h('button', { class: 'icon-btn gear', id: 'btn-settings', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('gear')));
     }
@@ -454,8 +462,7 @@ function renderSidebar(rt) {
   sb.replaceChildren();
   const head = h('div', { class: 'side-head' },
     h('div', { class: 'brand' },
-      h('div', { class: 'brand-text' }, h('h1', null, 'Eriks Rezepte')),
-      h('div', { class: 'shelf-wrap', html: shelfSVG('rezepte') })),
+      h('div', { class: 'brand-text' }, h('h1', null, 'Eriks Rezepte'))),
     h('div', { class: 'search-row' },
       h('label', { class: 'search' + (state.q ? ' has-q' : '') }, icon('search'),
         h('input', { id: 'q', type: 'text', inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false', placeholder: 'Rezepte, Zutaten, Gewürze', value: state.q, 'aria-label': 'Suchen',
@@ -1563,10 +1570,25 @@ function weekPage() {
   const mark = (i) => { state.dayKey = dkey(days[i]); strip.querySelectorAll('.ds').forEach((b, j) => b.classList.toggle('on', j === i)); };
   let raf = 0;
   daysEl.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
-    const w = daysEl.firstElementChild.getBoundingClientRect().width + 12;
+    const w = daysEl.firstElementChild.getBoundingClientRect().width + parseFloat(getComputedStyle(daysEl).columnGap || 0);
     if (daysEl.scrollWidth > daysEl.clientWidth + 4) mark(Math.max(0, Math.min(6, Math.round(daysEl.scrollLeft / w))));
   }); }, { passive: true });
   wrap.append(strip, daysEl);
+  // Über Sonntag hinaus wischen -> Montag der nächsten Woche (und umgekehrt)
+  let tx = null, ty = null, edge = 0;
+  daysEl.addEventListener('touchstart', (e) => {
+    tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+    const max = daysEl.scrollWidth - daysEl.clientWidth;
+    edge = daysEl.scrollLeft >= max - 4 ? 1 : daysEl.scrollLeft <= 4 ? -1 : 0;
+  }, { passive: true });
+  daysEl.addEventListener('touchend', (e) => {
+    if (tx == null || !edge) return;
+    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty; tx = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    if (edge === 1 && dx < 0) { state.weekOffset++; state.dayKey = dkey(addDays(start, 7)); state.slideIn = 'next'; rerenderTab(); }
+    else if (edge === -1 && dx > 0) { state.weekOffset--; state.dayKey = dkey(addDays(start, -1)); state.slideIn = 'prev'; rerenderTab(); }
+  }, { passive: true });
+  if (state.slideIn) { daysEl.classList.add('slide-' + state.slideIn); state.slideIn = null; }
   queueMicrotask(() => { const c = daysEl.children[idx]; if (c && daysEl.scrollWidth > daysEl.clientWidth + 4) daysEl.scrollLeft = c.offsetLeft - daysEl.firstElementChild.offsetLeft; });
 
   wrap.append(h('button', { class: 'btn primary wk-shop', id: 'wk-shop', onclick: () => shopWeek(datas) }, icon('cart'), 'Für die Woche einkaufen'));
@@ -2079,7 +2101,7 @@ function shopPage() {
     onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } } });
   const add = () => { const p = parseShopText(inp.value); if (!p.name) return; addShopItems([p]); rerenderTab('shop-input'); };
   inner.append(h('div', { class: 'shop-add' }, inp, h('button', { class: 'btn primary', id: 'shop-add', onclick: add }, icon('plus'), 'Hinzufügen')), hint);
-  if (!state.shop.length) inner.append(h('div', { class: 'empty-state' }, h('div', { style: { fontSize: '40px' } }, '🛒'), h('p', null, 'Trag oben etwas ein oder hol dir Zutaten aus einem Rezept („Einkaufen“) oder dem Wochenplan („Woche einkaufen“).')));
+  if (!state.shop.length) inner.append(h('div', { class: 'empty-state' }, h('div', { style: { fontSize: '40px' } }, '🛒'), h('p', null, 'Trag oben etwas ein oder hol dir Zutaten aus einem Rezept („Einkaufen“) oder dem Wochenplan („Für die Woche einkaufen“).')));
   if (open.length) inner.append(h('div', { class: 'shop-list', id: 'shop-open' }, open.map(shopRow)));
   if (done.length) inner.append(
     h('div', { class: 'tp-head', style: { alignItems: 'center' } }, h('span', { class: 'cap' }, 'Erledigt'),
