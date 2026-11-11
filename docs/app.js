@@ -62,6 +62,7 @@ function h(tag, attrs, ...kids) {
 }
 const ICONS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   back: '<path d="m15 18-6-6 6-6"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
@@ -360,7 +361,11 @@ function render() {
     document.body.classList.remove('detail-open');
     $('#tabpage').replaceChildren(tab === 'woche' ? weekPage() : tab === 'vorrat' ? pantryPage() : shopPage());
     const head = $('#tabpage .tp-head');
-    if (head) { head.classList.add('tp-hero-head'); head.insertBefore(h('div', { class: 'shelf-wrap', html: shelfSVG(tab) }), head.children[1] || null); }
+    if (head) {
+      head.classList.add('tp-hero-head'); head.insertBefore(h('div', { class: 'shelf-wrap', html: shelfSVG(tab) }), head.children[1] || null);
+      let act = head.querySelector('.tp-actions'); if (!act) { act = h('div', { class: 'tp-actions' }); head.append(act); }
+      act.append(h('button', { class: 'icon-btn gear', id: 'btn-settings', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('gear')));
+    }
     if (tab === 'vorrat') applyPantryFilter();
     renderReminder();
     return;
@@ -415,8 +420,7 @@ function filterPanel() {
     groupEl({ emoji: '🥬', label: 'Volumen (berechnet)' }, Object.entries(VOL_BUCKETS).map(([k, b]) => ['vol:' + k, `${b.emoji} ${b.label}`, vcounts[k]])),
     custom.length ? groupEl({ emoji: '🏷️', label: 'Eigene' }, custom.map(t => [t, t, counts[t]])) : null,
     h('div', { class: 'fp-foot' },
-      h('span', { class: 'muted' }, 'Zielrichtung, Art, Geschmack und Volumen: eins davon reicht. Besonderheiten und eigene Kategorien: alle gewählten müssen passen.'),
-      h('button', { class: 'link-btn', onclick: () => { state.filter = []; renderSidebar(route()); } }, 'Zurücksetzen'),
+      h('button', { class: 'btn', id: 'filter-reset', onclick: () => { state.filter = []; renderSidebar(route()); } }, 'Zurücksetzen'),
       h('button', { class: 'btn primary', id: 'filter-done', onclick: () => { state.filterOpen = false; renderSidebar(route()); } }, 'Fertig')));
 }
 
@@ -427,13 +431,14 @@ function renderSidebar(rt) {
   sb.replaceChildren();
   const head = h('div', { class: 'side-head' },
     h('div', { class: 'brand' },
-      h('div', { class: 'brand-text' }, h('small', null, 'Winter Arc'), h('h1', null, 'Eriks Rezepte')),
+      h('div', { class: 'brand-text' }, h('h1', null, 'Eriks Rezepte')),
       h('div', { class: 'shelf-wrap', html: shelfSVG('rezepte') })),
-    todayCard(),
     h('div', { class: 'search-row' },
-      h('label', { class: 'search' }, icon('search'),
-        h('input', { id: 'q', type: 'search', placeholder: 'Rezepte, Zutaten, Gewürze', value: state.q, 'aria-label': 'Suchen',
-          oninput: (e) => { state.q = e.target.value; renderSidebar(route()); } })),
+      h('label', { class: 'search' + (state.q ? ' has-q' : '') }, icon('search'),
+        h('input', { id: 'q', type: 'text', inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false', placeholder: 'Rezepte, Zutaten, Gewürze', value: state.q, 'aria-label': 'Suchen',
+          oninput: (e) => { state.q = e.target.value; e.target.parentNode.classList.toggle('has-q', !!state.q); clearTimeout(searchTimer); searchTimer = setTimeout(refreshList, 450); },
+          onkeydown: (e) => { if (e.key === 'Enter') { clearTimeout(searchTimer); refreshList(); e.target.blur(); } } }),
+        h('button', { class: 'search-x', type: 'button', 'aria-label': 'Suche löschen', onclick: (e) => { e.preventDefault(); state.q = ''; const q = $('#q'); q.value = ''; q.parentNode.classList.remove('has-q'); clearTimeout(searchTimer); refreshList(); } }, icon('x'))),
       h('button', { class: 'filter-btn' + (state.filter.length ? ' on' : ''), id: 'btn-filter', 'aria-expanded': state.filterOpen ? 'true' : 'false',
         onclick: () => { state.filterOpen = !state.filterOpen; renderSidebar(route()); } },
         icon('filter'), h('span', null, 'Filter'), state.filter.length ? h('span', { class: 'count' }, state.filter.length) : null)),
@@ -443,18 +448,33 @@ function renderSidebar(rt) {
     state.filter.map(f => h('button', { class: 'chip on', 'aria-label': filterLabel(f) + ' entfernen', onclick: () => toggleFilter(f) }, filterLabel(f), icon('x'))),
     h('button', { class: 'link-btn', onclick: () => { state.filter = []; renderSidebar(route()); } }, 'Alle löschen')));
   const list = filteredRecipes();
+  const SORTS = [['updated', 'Zuletzt bearbeitet'], ['az', 'A–Z'], ['protein', 'Meiste Proteine'], ['density', 'Beste Proteindichte'], ['kcal', 'Wenigste kcal']];
   head.append(h('div', { class: 'sort-row' },
-    h('span', null, `${list.length} ${list.length === 1 ? 'Rezept' : 'Rezepte'}`),
-    h('select', { id: 'sort', 'aria-label': 'Sortierung', onchange: (e) => { state.sort = e.target.value; Settings.set('sort', state.sort); renderSidebar(route()); } },
-      [['updated', 'Zuletzt bearbeitet'], ['az', 'A–Z'], ['protein', 'Meiste Proteine'], ['density', 'Beste Proteindichte'], ['kcal', 'Wenigste kcal']].map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l)))));
+    h('span', { id: 'rcount' }, `${list.length} ${list.length === 1 ? 'Rezept' : 'Rezepte'}`),
+    h('label', { class: 'sort-pick' }, h('span', null, (SORTS.find(x => x[0] === state.sort) || SORTS[0])[1]), icon('down'),
+      h('select', { id: 'sort', 'aria-label': 'Sortierung', onchange: (e) => { state.sort = e.target.value; Settings.set('sort', state.sort); renderSidebar(route()); } },
+        SORTS.map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l))))));
   sb.append(head);
-
-  if (state.recipes.some(r => r.example)) sb.append(h('div', { class: 'banner' },
-    h('span', null, `${state.recipes.filter(r => r.example).length} Beispielrezepte zum Ausprobieren.`),
-    h('button', { class: 'link-btn', onclick: async () => { for (const r of state.recipes.filter(r => r.example)) await deleteRecipe(r.id); toast('Beispiele entfernt'); go(''); render(); } }, 'Entfernen')));
-
+  sb.append(recipeList(rt, list));
+  const bs = backupStatus();
+  sb.append(h('div', { class: 'side-foot' },
+    h('span', { class: 'bk-hint' + (bs.warn || Store.mode === 'memory' ? ' warn' : ''), id: 'bk-hint' }, Store.mode === 'memory' ? 'Achtung: nicht dauerhaft gespeichert' : bs.short),
+    h('button', { class: 'link-btn', id: 'btn-import', onclick: () => $('#file-json').click() }, 'Importieren'),
+    h('button', { class: 'link-btn', id: 'btn-menu', onclick: openMenu }, 'Backup'),
+    h('button', { class: 'icon-btn gear', id: 'btn-settings-side', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('gear'))));
+  if (keepFocus) { const q = $('#q'); q.focus(); try { q.setSelectionRange(selStart, selStart); } catch (e) {} }
+}
+// Suche: erst tippen lassen, dann nur die Liste neu aufbauen (das Eingabefeld bleibt unberührt)
+let searchTimer = 0;
+function refreshList() {
+  const old = $('#rlist'); if (!old) return;
+  const list = filteredRecipes();
+  old.replaceWith(recipeList(route(), list));
+  const c = $('#rcount'); if (c) c.textContent = `${list.length} ${list.length === 1 ? 'Rezept' : 'Rezepte'}`;
+}
+function recipeList(rt, list) {
   const activeId = rt.id || (rt.name === 'edit' && state.draft && state.draft.id);
-  const ul = h('div', { class: 'list', role: 'list' });
+  const ul = h('div', { class: 'list', role: 'list', id: 'rlist' });
   if (!list.length) ul.append(h('div', { class: 'empty-list' }, state.recipes.length ? 'Keine Treffer. Suche oder Filter anpassen.' : 'Noch keine Rezepte. Tippe auf + und leg dein erstes Rezept an.'));
   for (const r of list) {
     const p = totals(r).portion; const vb = volBucket(r); const ws = warnings(r);
@@ -464,19 +484,13 @@ function renderSidebar(rt) {
         h('div', { class: 't' }, r.title || 'Ohne Titel', ws.length ? h('span', { class: 'warn-dot', title: ws.map(w => w.text).join(' · ') }, '⚠️') : null),
         h('div', { class: 'm num' }, vb ? VOL_BUCKETS[vb].emoji + ' ' : '', `${fmt(p.kcal)} kcal · `, h('b', null, `${fmt(p.protein)} g P`), ` · ${fmt(p.carbs)} KH · ${fmt(p.fat)} F`))));
   }
-  sb.append(ul);
-  const bs = backupStatus();
-  sb.append(h('div', { class: 'side-foot' },
-    h('span', { class: 'bk-hint' + (bs.warn || Store.mode === 'memory' ? ' warn' : ''), id: 'bk-hint' }, Store.mode === 'memory' ? 'Achtung: nicht dauerhaft gespeichert' : bs.short),
-    h('button', { class: 'link-btn', id: 'btn-import', onclick: () => $('#file-json').click() }, 'Importieren'),
-    h('button', { class: 'link-btn', id: 'btn-menu', onclick: openMenu }, 'Backup')));
-  if (keepFocus) { const q = $('#q'); q.focus(); try { q.setSelectionRange(selStart, selStart); } catch (e) {} }
+  return ul;
 }
 
 function todayCard() {
   const t = new Date(); t.setHours(12, 0, 0, 0);
   const d = state.plan.days[dkey(t)];
-  const sh = d && SHIFTS.find(x => x.k === d.shift);
+  const sh = isWorkDay(d) ? { k: d.shift, label: shiftLabel(d) } : null;
   const filled = d ? (d.meals || []).filter(m => (m.recipeId && byId(m.recipeId)) || m.text) : [];
   const next = filled.find(m => !m.prepared) || filled[0];
   const nm = next ? ((next.recipeId && byId(next.recipeId)) ? byId(next.recipeId).title : next.text) : 'Noch nichts geplant';
@@ -1378,6 +1392,16 @@ function rerenderTab(focusId) {
    ========================================================= */
 const SHIFTS = [{ k: 'frueh', label: 'Frühdienst' }, { k: 'tag', label: 'Tagesdienst' }, { k: 'spaet', label: 'Spätdienst' }, { k: 'nacht', label: 'Nachtdienst' }, { k: 'fruehnacht', label: 'Früh/Nachtdienst' }];
 const DEFAULT_MEALS = ['Frühstück', 'Mittagessen', 'Abendessen'];
+const irregularWork = () => Settings.get('irregular', true);
+const duties = () => { const l = Settings.get('duties', null); return Array.isArray(l) ? l : SHIFTS; };
+const workOptions = () => irregularWork() ? duties() : [{ k: 'arbeit', label: 'Arbeitstag' }];
+const isWorkDay = (d) => !!(d && d.shift && d.shift !== 'frei');
+function shiftLabel(d) {
+  if (!d || !d.shift) return '';
+  if (d.shift === 'frei') return 'Freier Tag';
+  const o = [...duties(), ...SHIFTS, { k: 'arbeit', label: 'Arbeitstag' }].find(x => x.k === d.shift);
+  return o ? o.label : (d.shiftLabel || 'Arbeit');
+}
 const MEAL_TYPES = { 'Frühstück': '🥣', 'Mittagessen': '🍽️', 'Abendessen': '🍲', 'Snack': '🍎', 'Shake': '🥤', 'Dessert': '🍰', 'Pre-Workout': '⚡' };
 const EXTRA_TYPES = ['Abendessen', 'Snack', 'Shake', 'Dessert', 'Pre-Workout'];
 const MAX_MEALS = 5;
@@ -1387,7 +1411,7 @@ const dkey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const fmtDM = (d) => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
 function weekStartDate(offset = 0) {
-  const ws = Settings.get('weekStart', 6);
+  const ws = 1; // Woche beginnt immer am Montag
   const t = new Date(); t.setHours(12, 0, 0, 0);
   return addDays(t, -((t.getDay() - ws + 7) % 7) + offset * 7);
 }
@@ -1438,24 +1462,18 @@ function weekPage() {
       h('div', { class: 'week-nav' },
         h('button', { class: 'icon-btn', id: 'wk-prev', 'aria-label': 'Vorherige Woche', onclick: () => { state.weekOffset--; state.dayKey = null; rerenderTab(); } }, icon('back')),
         h('button', { class: 'btn', id: 'wk-today', disabled: state.weekOffset === 0 && (!state.dayKey || state.dayKey === dkey(new Date())), onclick: () => { state.weekOffset = 0; state.dayKey = null; rerenderTab(); } }, 'Heute'),
-        h('button', { class: 'icon-btn', id: 'wk-next', 'aria-label': 'Nächste Woche', onclick: () => { state.weekOffset++; state.dayKey = null; rerenderTab(); } }, icon('next'))),
-      h('label', { class: 'muted', style: { fontSize: '13px', display: 'flex', gap: '6px', alignItems: 'center' } }, 'Woche beginnt am',
-        h('select', { class: 'field', id: 'wk-start', style: { width: 'auto', padding: '5px 8px' }, onchange: (e) => { Settings.set('weekStart', +e.target.value); rerenderTab(); } },
-          [[6, 'Samstag'], [0, 'Sonntag'], [1, 'Montag']].map(([v, l]) => h('option', { value: v, selected: Settings.get('weekStart', 6) === v }, l)))),
-      h('button', { class: 'btn primary', id: 'wk-shop', onclick: () => shopWeek(datas) }, icon('cart'), 'Woche einkaufen'))));
-  wrap.append(h('div', { class: 'summary' },
-    tile(withRec.length ? fmt(avg('kcal')) + ' kcal' : '–', 'Ø pro Tag (Tage mit Rezepten)'),
-    tile(withRec.length ? fmt(avg('protein')) + ' g' : '–', 'Ø Protein pro Tag'),
-    tile(String(sportDays), 'Tage mit Sport')));
+        h('button', { class: 'icon-btn', id: 'wk-next', 'aria-label': 'Nächste Woche', onclick: () => { state.weekOffset++; state.dayKey = null; rerenderTab(); } }, icon('next'))))));
+
   const todayIdx = days.findIndex(x => dkey(x) === dkey(new Date()));
   let idx = days.findIndex(x => dkey(x) === state.dayKey);
   if (idx < 0) idx = todayIdx >= 0 ? todayIdx : 0;
   const strip = h('div', { class: 'day-strip', role: 'tablist', 'aria-label': 'Tag wählen' }, days.map((x, i) => {
     const dd = datas[i];
-    return h('button', { class: 'ds' + (i === idx ? ' on' : '') + (i === todayIdx ? ' is-today' : ''), role: 'tab', 'data-ds': i, 'aria-label': WD[x.getDay()] + ' ' + fmtDM(x),
-      onclick: () => { const c = daysEl.children[i]; daysEl.scrollTo({ left: c.offsetLeft - daysEl.firstElementChild.offsetLeft, behavior: 'smooth' }); } },
+    const kind = isWorkDay(dd) ? ' work' : dd.shift === 'frei' ? ' free' : '';
+    return h('button', { class: 'ds' + kind + (i === idx ? ' on' : '') + (i === todayIdx ? ' is-today' : ''), role: 'tab', 'data-ds': i, 'aria-label': WD[x.getDay()] + ' ' + fmtDM(x) + (dd.shift ? ', ' + shiftLabel(dd) : ''),
+      onclick: () => { const c = daysEl.children[i]; daysEl.scrollTo({ left: c.offsetLeft - daysEl.firstElementChild.offsetLeft, behavior: 'smooth' }); mark(i); } },
       h('small', null, WD[x.getDay()].slice(0, 2)), h('b', { class: 'num' }, String(x.getDate())),
-      h('i', { class: 'ds-dot' + (dd.shift ? ' s-' + dd.shift : dd.place ? ' s-ort' : '') }));
+      h('i', { class: 'ds-dot' + (isWorkDay(dd) ? ' s-work' : dd.shift === 'frei' ? ' s-free' : dd.place ? ' s-ort' : '') }));
   }));
   const daysEl = h('div', { class: 'days', id: 'days' }, days.map(dayCard));
   const mark = (i) => { state.dayKey = dkey(days[i]); strip.querySelectorAll('.ds').forEach((b, j) => b.classList.toggle('on', j === i)); };
@@ -1466,6 +1484,12 @@ function weekPage() {
   }); }, { passive: true });
   wrap.append(strip, daysEl);
   queueMicrotask(() => { const c = daysEl.children[idx]; if (c && daysEl.scrollWidth > daysEl.clientWidth + 4) daysEl.scrollLeft = c.offsetLeft - daysEl.firstElementChild.offsetLeft; });
+
+  wrap.append(h('button', { class: 'btn primary wk-shop', id: 'wk-shop', onclick: () => shopWeek(datas) }, icon('cart'), 'Woche einkaufen'));
+  wrap.append(h('div', { class: 'summary' },
+    tile(withRec.length ? fmt(avg('kcal')) + ' kcal' : '–', 'Ø pro Tag (Tage mit Rezepten)'),
+    tile(withRec.length ? fmt(avg('protein')) + ' g' : '–', 'Ø Protein pro Tag'),
+    tile(String(sportDays), 'Tage mit Sport')));
   return wrap;
 }
 
@@ -1475,49 +1499,53 @@ function dayCard(date) {
   const save = (focusId) => { persist('plan'); rerenderTab(focusId); };
   const card = h('article', { class: 'day' + (isToday ? ' today' : ''), 'data-day': key });
   card.append(h('div', { class: 'day-head' }, h('h3', null, WD[date.getDay()], isToday ? h('span', { class: 'today-pill' }, 'Heute') : null), h('span', { class: 'dt num' }, fmtDM(date))));
-  const placeMode = !d.shift && (d.place || state.placeOpen === key);
-  const workVal = d.shift || (placeMode ? '__ort' : '');
+
+  // Arbeit
+  const opts = workOptions();
+  const known = !d.shift || d.shift === 'frei' || opts.some(o => o.k === d.shift);
+  const work = isWorkDay(d);
   card.append(h('div', { class: 'day-sec', style: { borderTop: '0', paddingTop: '6px' } }, h('div', { class: 'sec-lab' }, 'Arbeit'),
     h('div', { class: 'work-row' },
-      h('label', { class: 'work-sel' + (d.shift ? ` on s-${d.shift}` : placeMode ? ' on s-ort' : '') },
-        icon(d.shift === 'nacht' || d.shift === 'fruehnacht' ? 'moon' : placeMode ? 'pin' : 'sunrise'),
+      h('label', { class: 'work-sel' + (work ? ' on s-work' : d.shift === 'frei' ? ' on s-free' : '') },
+        work ? h('span', { class: 'wk-emo', 'aria-hidden': 'true' }, '💼') : d.shift === 'frei' ? h('span', { class: 'wk-emo', 'aria-hidden': 'true' }, '🏖️') : icon('calendar'),
         h('select', { 'data-work': key, 'aria-label': 'Arbeit an diesem Tag', onchange: (e) => {
-          const v = e.target.value;
-          if (v === '__ort') { d.shift = ''; state.placeOpen = key; save('place-' + key); }
-          else { d.shift = v; d.place = ''; state.placeOpen = null; save(); }
+          const v = e.target.value; d.shift = v;
+          d.shiftLabel = v ? (v === 'frei' ? 'Freier Tag' : (opts.find(o => o.k === v) || {}).label || d.shiftLabel || '') : '';
+          save();
         } },
-          h('option', { value: '', selected: workVal === '' }, 'Kein Dienst'),
-          SHIFTS.map(sh => h('option', { value: sh.k, selected: workVal === sh.k }, sh.label)),
-          h('option', { value: '__ort', selected: workVal === '__ort' }, 'Eigener Eintrag …'))),
-      placeMode ? h('label', { class: 'place' + (d.place ? ' on' : '') }, icon('pin'),
-        h('input', { value: d.place, id: 'place-' + key, 'data-place': key, placeholder: 'z. B. Urlaub, Familie', 'aria-label': 'Eigener Eintrag statt Dienst', enterkeyhint: 'done',
-          onchange: (e) => { d.place = e.target.value.trim(); if (d.place) d.shift = ''; else state.placeOpen = null; save(); },
-          onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); } })) : null)));
+          h('option', { value: '', selected: !d.shift }, 'Nichts eingetragen'),
+          known ? null : h('option', { value: d.shift, selected: true }, shiftLabel(d)),
+          opts.map(o => h('option', { value: o.k, selected: d.shift === o.k }, o.label)),
+          h('option', { value: 'frei', selected: d.shift === 'frei' }, 'Freier Tag'))),
+      h('label', { class: 'place' + (d.place ? ' on' : '') }, icon('pin'),
+        h('input', { value: d.place, id: 'place-' + key, 'data-place': key, placeholder: 'Eigener Eintrag, z. B. Urlaub', 'aria-label': 'Eigener Eintrag', enterkeyhint: 'done',
+          onchange: (e) => { d.place = e.target.value.trim(); save(); },
+          onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); } })))));
 
   // Mahlzeiten
-  const ms = h('div', { class: 'day-sec' }, h('div', { class: 'sec-row' }, h('span', { class: 'sec-lab' }, 'Mahlzeiten'), h('span', { class: 'prep-lab' }, 'Vorbereitet?')));
+  const ms = h('div', { class: 'day-sec' }, h('div', { class: 'sec-lab' }, 'Mahlzeiten'));
   d.meals.forEach((m, i) => {
-    const typeEl = i < 2 ? h('span', { class: 'mt' }, m.type)
+    const typeEl = i < DEFAULT_MEALS.length && m.type === DEFAULT_MEALS[i] ? h('span', { class: 'mt' }, m.type)
       : h('label', { class: 'mt mt-pick', title: 'Art ändern' }, h('span', null, m.type), icon('down'),
         h('select', { class: 'mt-sel', 'aria-label': 'Art der Mahlzeit', onchange: (e) => { m.type = e.target.value; save(); } },
-          EXTRA_TYPES.map(t => h('option', { value: t, selected: m.type === t }, t))));
+          [...new Set([m.type, ...EXTRA_TYPES])].map(t => h('option', { value: t, selected: m.type === t }, t))));
     const r = m.recipeId && byId(m.recipeId);
+    const filled = !!(r || m.text);
+    const prep = filled && m.prepared ? ' prepped' : '';
     let content;
     if (r) {
       const p = totals(r).portion; const f = parseNum(m.portions) || 1;
-      content = h('button', { class: 'meal-rec', title: 'Rezept öffnen', onclick: () => go('r-' + r.id) }, thumb(r),
-        h('div', { style: { minWidth: '0' } }, h('b', null, (r.title || 'Ohne Titel') + (f !== 1 ? ` ×${fmt(f, 2)}` : '')), h('span', { class: 'num' }, `${fmt(p.kcal * f)} kcal · ${fmt(p.protein * f)} g P`)));
-    } else if (m.text) content = h('button', { class: 'meal-txt', title: 'Ändern', onclick: () => openMealPicker(m) }, m.text);
+      content = h('button', { class: 'meal-rec' + prep, title: 'Rezept öffnen', onclick: () => go('r-' + r.id) }, thumb(r),
+        h('div', { style: { minWidth: '0' } }, h('b', null, (r.title || 'Ohne Titel') + (f !== 1 ? ` ×${fmt(f, 2)}` : '')), h('span', { class: 'num' }, `${fmt(p.kcal * f)} kcal · ${fmt(p.protein * f)} g P` + (m.prepared ? ' · vorbereitet' : ''))));
+    } else if (m.text) content = h('button', { class: 'meal-txt' + prep, title: 'Ändern', onclick: () => openMealPicker(m) }, m.text);
     else content = h('button', { class: 'meal-pick', onclick: () => openMealPicker(m) }, '+ Rezept oder Notiz');
-    const filled = r || m.text;
     ms.append(h('div', { class: 'meal', 'data-meal': i },
-      typeEl, content,
-      filled ? h('button', { class: 'prep' + (m.prepared ? ' on' : ''), 'data-prep': `${key}-${i}`, 'aria-pressed': m.prepared ? 'true' : 'false', 'aria-label': `${m.type} vorbereitet`, title: m.prepared ? 'Vorbereitet' : 'Als vorbereitet abhaken',
-        onclick: () => { m.prepared = !m.prepared; save(); } }, m.prepared ? icon('check') : null) : h('span'),
-      h('div', { class: 'row-btns' },
-        filled ? h('button', { class: 'mini', 'aria-label': 'Ändern', onclick: () => openMealPicker(m) }, icon('edit')) : null,
-        i >= 2 ? h('button', { class: 'mini del', 'aria-label': 'Mahlzeit entfernen', onclick: () => { d.meals.splice(i, 1); save(); } }, icon('trash'))
-          : filled ? h('button', { class: 'mini del', 'aria-label': 'Leeren', onclick: () => { m.recipeId = ''; m.text = ''; save(); } }, icon('x')) : null)));
+      typeEl,
+      h('div', { class: 'meal-line' }, content,
+        h('div', { class: 'row-btns' },
+          filled ? h('button', { class: 'mini', 'aria-label': 'Ändern', onclick: () => openMealPicker(m) }, icon('edit')) : null,
+          i >= 2 ? h('button', { class: 'mini del', 'aria-label': 'Mahlzeit entfernen', onclick: () => { d.meals.splice(i, 1); save(); } }, icon('trash'))
+            : filled ? h('button', { class: 'mini del', 'aria-label': 'Leeren', onclick: () => { m.recipeId = ''; m.text = ''; m.prepared = false; save(); } }, icon('trash')) : null))));
   });
   if (d.meals.length < MAX_MEALS) ms.append(h('button', { class: 'link-btn', style: { alignSelf: 'flex-start' }, 'data-addmeal': key,
     onclick: () => { d.meals.push({ id: uid(), type: d.meals.length === 2 ? 'Abendessen' : 'Snack' }); save(); } }, '+ Mahlzeit'));
@@ -1527,13 +1555,13 @@ function dayCard(date) {
   const ev = h('div', { class: 'day-sec' }, h('div', { class: 'sec-lab' }, 'Termine'));
   [...d.events].sort((a, b) => (a.time || '99').localeCompare(b.time || '99')).forEach(e => ev.append(h('div', { class: 'ev' },
     e.time ? h('span', { class: 'tm' }, e.time) : null, h('span', { style: { flex: '1', minWidth: '0' } }, e.text),
-    h('button', { class: 'mini del', 'aria-label': 'Termin entfernen', onclick: () => { d.events = d.events.filter(x => x !== e); save(); } }, icon('x')))));
+    h('button', { class: 'mini del', 'aria-label': 'Termin entfernen', onclick: () => { d.events = d.events.filter(x => x !== e); save(); } }, icon('trash')))));
   const addBtn = h('button', { class: 'link-btn', style: { alignSelf: 'flex-start' }, 'data-addevent': key, onclick: () => {
     const tIn = h('input', { type: 'time', class: 'field', 'aria-label': 'Uhrzeit' });
-    const xIn = h('input', { class: 'field', id: 'ev-' + key, placeholder: 'z. B. Essen mit Freunden', 'aria-label': 'Termin',
+    const xIn = h('input', { class: 'field', id: 'ev-' + key, placeholder: 'z. B. Essen mit Freunden', 'aria-label': 'Termin', enterkeyhint: 'done',
       onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); addEv(); } if (e.key === 'Escape') rerenderTab(); } });
     const addEv = () => { const t = xIn.value.trim(); if (!t) return; d.events.push({ id: uid(), time: tIn.value, text: t }); save(); };
-    addBtn.replaceWith(h('div', { class: 'inline-add' }, tIn, xIn, h('button', { class: 'mini', 'aria-label': 'Termin speichern', onclick: addEv }, icon('plus'))));
+    addBtn.replaceWith(h('div', { class: 'inline-add' }, tIn, xIn, h('button', { class: 'go-btn', 'aria-label': 'Termin speichern', onclick: addEv }, icon('check'))));
     xIn.focus();
   } }, '+ Termin');
   ev.append(addBtn);
@@ -1542,9 +1570,20 @@ function dayCard(date) {
   // Sport
   const sp = h('div', { class: 'day-sec' }, h('div', { class: 'sec-lab' }, 'Sport'),
     h('div', { class: 'sport-row' },
-      h('input', { class: 'field', value: d.sport, placeholder: 'z. B. Kraft Push, 10 km Lauf', 'aria-label': 'Sport', 'data-sport': key, onchange: (e) => { d.sport = e.target.value.trim(); save(); } })));
+      h('input', { class: 'field', value: d.sport, placeholder: 'z. B. Kraft Push, 10 km Lauf', 'aria-label': 'Sport', 'data-sport': key, enterkeyhint: 'done', onchange: (e) => { d.sport = e.target.value.trim(); save(); } })));
   if (!d.sport) sp.append(h('div', { class: 'mini-chips' }, SPORT_QUICK.map(q => h('button', { class: 'mini-chip', onclick: () => { d.sport = q; save(); } }, q))));
   card.append(sp);
+
+  // Vorbereitet?
+  const filledMeals = d.meals.filter(m => (m.recipeId && byId(m.recipeId)) || m.text);
+  if (filledMeals.length) {
+    const done = filledMeals.filter(m => m.prepared).length;
+    card.append(h('div', { class: 'day-sec' },
+      h('button', { class: 'prep-btn' + (done === filledMeals.length ? ' all' : done ? ' some' : ''), 'data-prepbtn': key, onclick: () => openPrepDialog(key) },
+        h('span', { class: 'prep-ic' }, done ? icon('check') : null),
+        h('span', { class: 'prep-t' }, h('b', null, 'Vorbereitet?'), h('small', null, done === filledMeals.length ? 'Alles vorgekocht' : done ? `${done} von ${filledMeals.length} vorgekocht` : 'Noch nichts vorgekocht')),
+        icon('next'))));
+  }
 
   const T = dayTotals(d);
   card.append(h('div', { class: 'day-foot num' },
@@ -1554,14 +1593,60 @@ function dayCard(date) {
   return card;
 }
 
+function openPrepDialog(key) {
+  const d = dayData(key); const date = new Date(key + 'T12:00:00');
+  const meals = d.meals.filter(m => (m.recipeId && byId(m.recipeId)) || m.text);
+  const dlg = $('#dlg');
+  openDialog(`Vorbereitet? · ${WD[date.getDay()]}`, h('div', { class: 'prep-list' },
+    h('p', { class: 'bk-note' }, 'Hake an, was du schon vorgekocht hast.'),
+    meals.map(m => { const r = m.recipeId && byId(m.recipeId);
+      return h('label', { class: 'choice' }, h('input', { type: 'checkbox', checked: !!m.prepared, 'data-prepcheck': m.type, onchange: (e) => { m.prepared = e.target.checked; persist('plan'); } }),
+        h('div', null, h('b', null, m.type), h('span', null, r ? r.title : m.text))); })),
+    [h('button', { class: 'btn primary', id: 'prep-done', onclick: () => dlg.close() }, 'Fertig')]);
+  dlg.addEventListener('close', () => { if (tabOf(route()) === 'woche') rerenderTab(); renderReminder(); }, { once: true });
+}
+
+/* ---------- Einstellungen ---------- */
+function openSettings() {
+  let irregular = irregularWork();
+  const list = duties().map(x => ({ k: x.k, label: x.label }));
+  const body = h('div', { id: 'settings', style: { display: 'flex', flexDirection: 'column', gap: '16px' } });
+  const addDuty = () => { const inp = $('#duty-new'); const v = inp && inp.value.trim(); if (!v) return; list.push({ k: 'c' + uid(), label: v }); draw(); $('#duty-new').focus(); };
+  const draw = () => body.replaceChildren(
+    h('section', { class: 'bk' }, h('h4', null, 'Arbeit'),
+      h('label', { class: 'choice' }, h('input', { type: 'checkbox', id: 'set-irregular', checked: irregular, onchange: (e) => { irregular = e.target.checked; draw(); } }),
+        h('div', null, h('b', null, 'Unregelmäßige Arbeitszeiten'),
+          h('span', null, irregular ? 'Lege deine Dienste selbst fest. Sie stehen in der Wochenplanung unter „Arbeit“ zur Auswahl.' : 'In der Wochenplanung wählst du zwischen „Arbeitstag“ und „Freier Tag“.'))),
+      irregular ? h('div', { class: 'duty-list' },
+        h('div', { class: 'sec-lab' }, 'Deine Dienste'),
+        list.map((x, i) => h('div', { class: 'duty-row' },
+          h('input', { class: 'field', value: x.label, 'data-duty': i, 'aria-label': 'Dienst', oninput: (e) => { x.label = e.target.value; } }),
+          h('button', { class: 'mini del', 'aria-label': `${x.label} entfernen`, onclick: () => { list.splice(i, 1); draw(); } }, icon('trash')))),
+        h('div', { class: 'duty-row' },
+          h('input', { class: 'field', id: 'duty-new', placeholder: 'Neuer Dienst, z. B. Bereitschaft', 'aria-label': 'Neuer Dienst', enterkeyhint: 'done', onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); addDuty(); } } }),
+          h('button', { class: 'go-btn', 'aria-label': 'Dienst hinzufügen', id: 'duty-add', onclick: addDuty }, icon('plus')))) : null),
+    h('section', { class: 'bk' }, h('h4', null, 'Daten'),
+      h('p', { class: 'bk-note' }, backupStatus().long),
+      h('div', { class: 'bk-row' }, h('button', { class: 'btn', onclick: () => openMenu() }, 'Backup & Daten'))));
+  draw();
+  openDialog('Einstellungen', body, [
+    h('button', { class: 'btn', onclick: () => $('#dlg').close() }, 'Abbrechen'),
+    h('button', { class: 'btn primary', id: 'set-save', onclick: () => {
+      const pending = $('#duty-new') && $('#duty-new').value.trim(); if (pending) list.push({ k: 'c' + uid(), label: pending });
+      Settings.set('irregular', irregular);
+      Settings.set('duties', list.map(x => ({ k: x.k, label: x.label.trim() })).filter(x => x.label));
+      $('#dlg').close(); toast('Einstellungen gesichert'); render();
+    } }, 'Sichern')]);
+}
+
 function reminderInfo() {
   const t = new Date(); t.setHours(12, 0, 0, 0);
   const tm = addDays(t, 1); const key = dkey(tm);
   const d = state.plan.days[key];
-  if (!d || !d.shift) return null;
+  if (!isWorkDay(d)) return null;
   const open = (d.meals || []).filter(m => ((m.recipeId && byId(m.recipeId)) || m.text) && !m.prepared);
   if (!open.length || Settings.get('remindHidden', '') === key) return null;
-  return { key, date: tm, shift: SHIFTS.find(x => x.k === d.shift), open };
+  return { key, date: tm, shift: { label: shiftLabel(d) }, open };
 }
 function renderReminder() {
   let el = $('#reminder'); const info = reminderInfo();
@@ -1633,8 +1718,7 @@ function openPlanDialog(r) {
   };
   const draw = () => {
     const d = dayData(key);
-    const sh = SHIFTS.find(x => x.k === d.shift);
-    info.replaceChildren(`${sh ? sh.label : d.place ? d.place : 'Kein Dienst eingetragen'}${d.events.length ? ' · Termine: ' + d.events.map(e => (e.time ? e.time + ' ' : '') + e.text).join(', ') : ''}`);
+    info.replaceChildren(`${d.shift ? shiftLabel(d) + (d.place ? ' · ' + d.place : '') : d.place ? d.place : 'Keine Arbeit eingetragen'}${d.events.length ? ' · Termine: ' + d.events.map(e => (e.time ? e.time + ' ' : '') + e.text).join(', ') : ''}`);
     box.replaceChildren(...d.meals.map(m => {
       const cur = m.recipeId && byId(m.recipeId);
       return h('button', { class: 'rel', 'data-slot': m.type, onclick: () => assign(m) }, h('span', { style: { fontSize: '24px', textAlign: 'center' } }, MEAL_TYPES[m.type] || '🍽️'),
@@ -2063,7 +2147,7 @@ function seedRecipes() {
   // iOS gewährt das vor allem Apps auf dem Home-Bildschirm. Schützt vor Löschung bei Speicherknappheit.
   try { if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) navigator.storage.persist(); } catch (e) {}
   const isWide = matchMedia('(min-width: 821px)').matches;
-  if (!location.hash && isWide && state.recipes.length) { const first = filteredRecipes()[0]; history.replaceState(null, '', '#r-' + first.id); }
+  if (!location.href.includes('#')) history.replaceState(null, '', '#woche');
   onRoute();
   window.__app = { state, Store, KV, Settings, parseMFP, totals, matchPantry, parseShopText, deleteRecipe, buildBackup, detectImport, safeImage };
 })();
