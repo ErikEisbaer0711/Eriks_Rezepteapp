@@ -1,4 +1,4 @@
-window.APP_VERSION = '6e50f0c3d0';
+window.APP_VERSION = '3d7eaa9c0c';
 'use strict';
 /* =========================================================
    Eriks Rezepte – lokale Rezept-App (eine Datei, offline)
@@ -375,7 +375,7 @@ function onRoute() {
 
 /* ---------- Rendern ---------- */
 // Hintergrund und Farbe der iPhone-Statusleiste passend zum Bereich
-const STATUS_COLORS = { main: ['#DAD4C0', '#26231F'], pantry: ['#C2BE9E', '#26231F'] };
+const STATUS_COLORS = { main: ['#DAD4C0', '#26231F'], pantry: ['#C8C19E', '#26231F'] };
 function setBackdrop(kind) {
   document.body.classList.toggle('bg-pantry', kind === 'pantry');
   const [light, dark] = STATUS_COLORS[kind];
