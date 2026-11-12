@@ -963,6 +963,14 @@ body::after { background: linear-gradient(to bottom, transparent, color-mix(in s
 @media print { #bgimg { display: none; } }
 .side-foot { margin-left: 12px; margin-right: 12px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); align-items: center; }
 
+/* ===== Runde 14: Tage ohne Wackeln ===== */
+@media (max-width: 760px) {
+  .days, .days:is(#days) { display: block; overflow: visible; scroll-snap-type: none; margin: 0; padding: 0; height: auto !important; touch-action: pan-y; }
+  .days > .day { display: none; }
+  .days > .day.active { display: flex; transition: transform .2s ease; }
+  .days > .day.slide-next { animation: slideNext .26s ease-out; }
+  .days > .day.slide-prev { animation: slidePrev .26s ease-out; }
+}
 /* ===== Runde 13 ===== */
 .quick-mac { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .quick-mac label { display: flex; flex-direction: column; gap: 2px; }
@@ -2612,36 +2620,47 @@ function weekPage() {
     const dd = datas[i];
     const kind = isWorkDay(dd) ? ' work' : dd.shift === 'frei' ? ' free' : '';
     return h('button', { class: 'ds' + kind + (i === idx ? ' on' : '') + (i === todayIdx ? ' is-today' : ''), role: 'tab', 'data-ds': i, 'aria-label': WD[x.getDay()] + ' ' + fmtDM(x) + (dd.shift ? ', ' + shiftLabel(dd) : ''),
-      onclick: () => { const c = daysEl.children[i]; daysEl.scrollTo({ left: c.offsetLeft - daysEl.firstElementChild.offsetLeft, behavior: 'smooth' }); mark(i); } },
+      onclick: () => show(i, i > cur ? 'next' : 'prev') },
       h('small', null, WD[x.getDay()].slice(0, 2)), h('b', { class: 'num' }, String(x.getDate())),
       h('i', { class: 'ds-dot' + (isWorkDay(dd) ? ' s-work' : dd.shift === 'frei' ? ' s-free' : dd.place ? ' s-ort' : '') }));
   }));
   const daysEl = h('div', { class: 'days', id: 'days' }, days.map(dayCard));
-  const fitHeight = (i) => { const c = daysEl.children[i]; if (!c || daysEl.scrollWidth <= daysEl.clientWidth + 4) { daysEl.style.height = ''; return; }
-    const cs = getComputedStyle(daysEl); daysEl.style.height = (c.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)) + 'px'; };
-  const mark = (i) => { state.dayKey = dkey(days[i]); strip.querySelectorAll('.ds').forEach((b, j) => b.classList.toggle('on', j === i)); fitHeight(i); };
-  let raf = 0;
-  daysEl.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
-    const w = daysEl.firstElementChild.getBoundingClientRect().width + parseFloat(getComputedStyle(daysEl).columnGap || 0);
-    if (daysEl.scrollWidth > daysEl.clientWidth + 4) mark(Math.max(0, Math.min(6, Math.round(daysEl.scrollLeft / w))));
-  }); }, { passive: true });
-  wrap.append(strip, daysEl);
-  // Über Sonntag hinaus wischen -> Montag der nächsten Woche (und umgekehrt)
-  let tx = null, ty = null, edge = 0;
+  // Handy: immer nur ein Tag. Gewechselt wird per Leiste oder deutlichem Wischen (vertikales Scrollen bleibt ungestört)
+  let cur = idx;
+  const show = (i, dir) => {
+    if (i === cur && !dir) return;
+    cur = i; state.dayKey = dkey(days[i]);
+    [...daysEl.children].forEach((c, j) => { c.classList.toggle('active', j === i); c.classList.remove('slide-next', 'slide-prev'); });
+    strip.querySelectorAll('.ds').forEach((b, j) => b.classList.toggle('on', j === i));
+    if (dir) { const c = daysEl.children[i]; void c.offsetWidth; c.classList.add('slide-' + dir); }
+  };
+  [...daysEl.children].forEach((c, j) => c.classList.toggle('active', j === idx));
+  const stepDay = (step) => {
+    const n = cur + step;
+    if (n >= 0 && n <= 6) return show(n, step > 0 ? 'next' : 'prev');
+    state.weekOffset += step; state.dayKey = dkey(addDays(start, step > 0 ? 7 : -1)); state.slideIn = step > 0 ? 'next' : 'prev'; rerenderTab();
+  };
+  let t0 = null;
   daysEl.addEventListener('touchstart', (e) => {
-    tx = e.touches[0].clientX; ty = e.touches[0].clientY;
-    const max = daysEl.scrollWidth - daysEl.clientWidth;
-    edge = daysEl.scrollLeft >= max - 4 ? 1 : daysEl.scrollLeft <= 4 ? -1 : 0;
+    if (e.touches.length !== 1 || e.target.closest('input, select, textarea')) { t0 = null; return; }
+    t0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), lock: null };
   }, { passive: true });
-  daysEl.addEventListener('touchend', (e) => {
-    if (tx == null || !edge) return;
-    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty; tx = null;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-    if (edge === 1 && dx < 0) { state.weekOffset++; state.dayKey = dkey(addDays(start, 7)); state.slideIn = 'next'; rerenderTab(); }
-    else if (edge === -1 && dx > 0) { state.weekOffset--; state.dayKey = dkey(addDays(start, -1)); state.slideIn = 'prev'; rerenderTab(); }
+  daysEl.addEventListener('touchmove', (e) => {
+    if (!t0) return;
+    const dx = e.touches[0].clientX - t0.x, dy = e.touches[0].clientY - t0.y;
+    if (!t0.lock && (Math.abs(dx) > 14 || Math.abs(dy) > 10)) t0.lock = Math.abs(dx) > Math.abs(dy) * 2 ? 'x' : 'y';
+    if (t0.lock === 'x') { const c = daysEl.children[cur]; c.style.transition = 'none'; c.style.transform = `translateX(${dx * 0.35}px)`; }
   }, { passive: true });
-  if (state.slideIn) { daysEl.classList.add('slide-' + state.slideIn); state.slideIn = null; }
-  queueMicrotask(() => { const c = daysEl.children[idx]; if (c && daysEl.scrollWidth > daysEl.clientWidth + 4) daysEl.scrollLeft = c.offsetLeft - daysEl.firstElementChild.offsetLeft; fitHeight(idx); });
+  const endSwipe = (e) => {
+    if (!t0) return;
+    const c = daysEl.children[cur]; const dx = (e.changedTouches[0] || {}).clientX - t0.x; const lock = t0.lock; t0 = null;
+    c.style.transition = ''; c.style.transform = '';
+    if (lock === "x" && Math.abs(dx) > 80) stepDay(dx < 0 ? 1 : -1);
+  };
+  daysEl.addEventListener('touchend', endSwipe, { passive: true });
+  daysEl.addEventListener('touchcancel', () => { if (t0) { const c = daysEl.children[cur]; c.style.transform = ''; t0 = null; } }, { passive: true });
+  wrap.append(strip, daysEl);
+  if (state.slideIn) { daysEl.children[idx].classList.add('slide-' + state.slideIn); state.slideIn = null; }
 
   wrap.append(h('button', { class: 'btn primary wk-shop', id: 'wk-shop', onclick: () => shopWeek(datas) }, icon('cart'), 'Für die Woche einkaufen'));
   wrap.append(h('div', { class: 'summary' },

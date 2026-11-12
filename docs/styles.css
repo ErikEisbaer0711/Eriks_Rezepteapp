@@ -950,6 +950,14 @@ body::after { background: linear-gradient(to bottom, transparent, color-mix(in s
 @media print { #bgimg { display: none; } }
 .side-foot { margin-left: 12px; margin-right: 12px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); align-items: center; }
 
+/* ===== Runde 14: Tage ohne Wackeln ===== */
+@media (max-width: 760px) {
+  .days, .days:is(#days) { display: block; overflow: visible; scroll-snap-type: none; margin: 0; padding: 0; height: auto !important; touch-action: pan-y; }
+  .days > .day { display: none; }
+  .days > .day.active { display: flex; transition: transform .2s ease; }
+  .days > .day.slide-next { animation: slideNext .26s ease-out; }
+  .days > .day.slide-prev { animation: slidePrev .26s ease-out; }
+}
 /* ===== Runde 13 ===== */
 .quick-mac { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .quick-mac label { display: flex; flex-direction: column; gap: 2px; }
