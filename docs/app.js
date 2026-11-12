@@ -1,4 +1,4 @@
-window.APP_VERSION = '3d7eaa9c0c';
+window.APP_VERSION = 'ac83d1890a';
 'use strict';
 /* =========================================================
    Eriks Rezepte – lokale Rezept-App (eine Datei, offline)
@@ -1531,6 +1531,7 @@ function dayTotals(d) {
   for (const m of d.meals) {
     const r = m.recipeId && byId(m.recipeId);
     if (r) { const p = totals(r).portion; const f = parseNum(m.portions) || 1; for (const k in t) t[k] += p[k] * f; rec++; }
+    else if (m.text && m.macros && parseNum(m.macros.kcal)) { for (const k in t) t[k] += parseNum(m.macros[k]); rec++; }
     else if (m.text) free++;
   }
   return { t, rec, free };
@@ -1567,7 +1568,9 @@ function weekPage() {
       h('i', { class: 'ds-dot' + (isWorkDay(dd) ? ' s-work' : dd.shift === 'frei' ? ' s-free' : dd.place ? ' s-ort' : '') }));
   }));
   const daysEl = h('div', { class: 'days', id: 'days' }, days.map(dayCard));
-  const mark = (i) => { state.dayKey = dkey(days[i]); strip.querySelectorAll('.ds').forEach((b, j) => b.classList.toggle('on', j === i)); };
+  const fitHeight = (i) => { const c = daysEl.children[i]; if (!c || daysEl.scrollWidth <= daysEl.clientWidth + 4) { daysEl.style.height = ''; return; }
+    const cs = getComputedStyle(daysEl); daysEl.style.height = (c.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)) + 'px'; };
+  const mark = (i) => { state.dayKey = dkey(days[i]); strip.querySelectorAll('.ds').forEach((b, j) => b.classList.toggle('on', j === i)); fitHeight(i); };
   let raf = 0;
   daysEl.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
     const w = daysEl.firstElementChild.getBoundingClientRect().width + parseFloat(getComputedStyle(daysEl).columnGap || 0);
@@ -1589,7 +1592,7 @@ function weekPage() {
     else if (edge === -1 && dx > 0) { state.weekOffset--; state.dayKey = dkey(addDays(start, -1)); state.slideIn = 'prev'; rerenderTab(); }
   }, { passive: true });
   if (state.slideIn) { daysEl.classList.add('slide-' + state.slideIn); state.slideIn = null; }
-  queueMicrotask(() => { const c = daysEl.children[idx]; if (c && daysEl.scrollWidth > daysEl.clientWidth + 4) daysEl.scrollLeft = c.offsetLeft - daysEl.firstElementChild.offsetLeft; });
+  queueMicrotask(() => { const c = daysEl.children[idx]; if (c && daysEl.scrollWidth > daysEl.clientWidth + 4) daysEl.scrollLeft = c.offsetLeft - daysEl.firstElementChild.offsetLeft; fitHeight(idx); });
 
   wrap.append(h('button', { class: 'btn primary wk-shop', id: 'wk-shop', onclick: () => shopWeek(datas) }, icon('cart'), 'Für die Woche einkaufen'));
   wrap.append(h('div', { class: 'summary' },
@@ -1643,7 +1646,11 @@ function dayCard(date) {
       const p = totals(r).portion; const f = parseNum(m.portions) || 1;
       content = h('button', { class: 'meal-rec' + prep, title: 'Rezept öffnen', onclick: () => go('r-' + r.id) }, thumb(r),
         h('div', { style: { minWidth: '0' } }, h('b', null, (r.title || 'Ohne Titel') + (f !== 1 ? ` ×${fmt(f, 2)}` : '')), h('span', { class: 'num' }, `${fmt(p.kcal * f)} kcal · ${fmt(p.protein * f)} g P` + (m.prepared ? ' · vorbereitet' : ''))));
-    } else if (m.text) content = h('button', { class: 'meal-txt' + prep, title: 'Ändern', onclick: () => openMealPicker(m) }, m.text);
+    } else if (m.text) {
+      const mm = m.macros && parseNum(m.macros.kcal) ? m.macros : null;
+      content = h('button', { class: 'meal-txt' + prep + (mm ? ' has-mac' : ''), title: 'Ändern', onclick: () => openMealPicker(m) }, h('b', null, m.text),
+        mm ? h('span', { class: 'num' }, `${fmt(parseNum(mm.kcal))} kcal · ${fmt(parseNum(mm.carbs))} KH · ${fmt(parseNum(mm.fat))} F · ${fmt(parseNum(mm.protein))} P`) : null);
+    }
     else content = h('button', { class: 'meal-pick', onclick: () => openMealPicker(m) }, '+ Rezept oder Notiz');
     ms.append(h('div', { class: 'meal', 'data-meal': i },
       typeEl,
@@ -1822,7 +1829,9 @@ function openMealPicker(m) {
     sync();
   };
   const apply = () => {
-    if (mode === 'text') { const t = txt.value.trim(); if (!t) return; m.text = t; m.recipeId = ''; }
+    if (mode === 'text') { const t = txt.value.trim(); if (!t) return; m.text = t; m.recipeId = '';
+      const mv = {}; for (const k of ['kcal', 'carbs', 'fat', 'protein']) mv[k] = parseNum($('#qm-' + k).value) || 0;
+      m.macros = mv.kcal || mv.carbs || mv.fat || mv.protein ? mv : null; }
     else if (mode === 'recipe' && pick) { m.recipeId = pick; m.text = ''; m.portions = parseNum(portions.value) || 1; }
     else return;
     $('#dlg').close(); persist('plan'); rerenderTab();
@@ -1831,6 +1840,10 @@ function openMealPicker(m) {
   openDialog(`${m.type} planen`, [
     h('span', { class: 'cap', style: { padding: '0' } }, 'Notiz'),
     txt,
+    h('div', { class: 'quick-mac', 'aria-label': 'Schnelleingabe Makros (optional)' },
+      [['kcal', 'kcal'], ['carbs', 'KH (g)'], ['fat', 'Fett (g)'], ['protein', 'Protein (g)']].map(([k, l]) => h('label', null, h('small', null, l),
+        h('input', { class: 'field num', id: 'qm-' + k, inputmode: 'decimal', placeholder: '–', value: m.macros && m.macros[k] ? fmtIn(m.macros[k]) : '',
+          oninput: () => { if (!txt.value.trim()) return; mode = 'text'; sync(); } })))),
     h('span', { class: 'cap', style: { padding: '0' } }, 'Oder ein Rezept'),
     h('div', { class: 'inline-add' },
       h('input', { class: 'field', id: 'pick-q', type: 'text', inputmode: 'search', autocomplete: 'off', placeholder: 'Rezept suchen', oninput: (e) => { q = e.target.value; draw(); } }),
@@ -1938,10 +1951,20 @@ function addPantryCat() {
   openDialog('Neue Kategorie', [h('div', { class: 'inline-add' }, em, nm)], [h('button', { class: 'btn', onclick: () => $('#dlg').close() }, 'Abbrechen'), h('button', { class: 'btn primary', id: 'cat-ok', onclick: ok }, 'Anlegen')]);
   setTimeout(() => nm.focus(), 50);
 }
+function renameCat(el, c) {
+  const inp = h('input', { class: 'field cat-rename', id: 'catren-' + c.id, value: c.name, 'aria-label': 'Name der Kategorie', enterkeyhint: 'done' });
+  let done = false;
+  const commit = (save) => { if (done) return; done = true; const v = inp.value.trim(); if (save && v && v !== c.name) { c.name = v; persist('pantry'); toast('Kategorie umbenannt'); } rerenderTab(); };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(true); } if (e.key === 'Escape') commit(false); });
+  inp.addEventListener('blur', () => commit(true));
+  el.replaceWith(inp); inp.focus(); inp.select();
+}
 function pantryCat(c) {
   const items = state.pantry.items.filter(i => i.catId === c.id);
   const box = h('section', { class: 'pcat', 'data-cat': c.name, 'data-catid': c.id });
-  box.append(h('div', { class: 'pcat-head' }, h('span', { style: { fontSize: '20px' } }, c.emoji || '📦'), h('h3', null, c.name), h('span', { class: 'n' }, items.length),
+  box.append(h('div', { class: 'pcat-head' }, h('span', { style: { fontSize: '20px' } }, c.emoji || '📦'),
+    h('h3', { class: 'pcat-name', title: 'Antippen zum Umbenennen', tabindex: '0', 'data-catname': c.id, onclick: (e) => renameCat(e.currentTarget, c), onkeydown: (e) => { if (e.key === 'Enter') renameCat(e.currentTarget, c); } }, c.name, icon('edit')),
+    h('span', { class: 'n' }, items.length),
     !items.length ? h('button', { class: 'mini del', 'aria-label': 'Kategorie löschen', onclick: () => { state.pantry.cats = state.pantry.cats.filter(x => x !== c); persist('pantry'); rerenderTab(); } }, icon('trash')) : null));
   items.forEach(it => box.append(pantryRow(it)));
   const inp = h('input', { class: 'field', id: 'padd-' + c.id, placeholder: '+ Artikel, z. B. 2x Kidneybohnen', 'aria-label': `Artikel zu ${c.name} hinzufügen`,
