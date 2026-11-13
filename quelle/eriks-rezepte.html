@@ -963,6 +963,16 @@ body::after { background: linear-gradient(to bottom, transparent, color-mix(in s
 @media print { #bgimg { display: none; } }
 .side-foot { margin-left: 12px; margin-right: 12px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); align-items: center; }
 
+/* ===== Runde 15 ===== */
+#rlist { margin-bottom: 12px; padding-bottom: 18px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+.opt-in { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; border: 1px dashed var(--line); background: transparent; color: var(--fg-2); border-radius: 999px; padding: 2px 9px 2px 7px; font: 600 11.5px var(--font); cursor: pointer; vertical-align: 1px; }
+.opt-in svg { width: 11px; height: 11px; opacity: 0; }
+.opt-in.on { border: 1px solid var(--accent); background: var(--leaf-soft); color: var(--leaf-ink); }
+.opt-in.on svg { opacity: 1; }
+.opt-note { font-size: 12.5px; color: var(--leaf-ink); background: var(--leaf-soft); border-radius: 10px; padding: 6px 10px; margin: -4px 0 12px; }
+.ing-table.no-mac .ing-row.is-opt .c-mac { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ing-table.no-mac .ing-row.is-opt .c-mac .mlab { display: block; }
+@media (max-width: 900px) { .ing-table.no-mac .ing-row.is-opt { grid-template-areas: "n a u" "m m m" "o b b"; } }
 /* ===== Runde 14: Tage ohne Wackeln ===== */
 @media (max-width: 760px) {
   .days, .days:is(#days) { display: block; overflow: visible; scroll-snap-type: none; margin: 0; padding: 0; height: auto !important; touch-action: pan-y; }
@@ -1165,7 +1175,12 @@ function parseNum(v) {
   return isFinite(n) ? n : 0;
 }
 const fmt = (n, d = 0) => { const v = Number(n) || 0; return v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: d }); };
-const fmtIn = (n) => (n === '' || n == null) ? '' : (Number(n) === 0 ? '0' : String(Math.round(Number(n) * 10) / 10).replace('.', ','));
+const fmtIn = (n) => {
+  if (n === '' || n == null) return '';
+  if (typeof n === 'string' && !/^\s*-?[\d.,]+\s*$/.test(n)) return n; // z. B. „1/2“ unverändert lassen
+  const v = parseNum(n);
+  return v === 0 ? '0' : String(Math.round(v * 10) / 10).replace('.', ',');
+};
 const fmtAmt = (a, u) => { const n = parseNum(a); if (!a && a !== 0) return u || ''; if (!n) return u || ''; return `${fmt(n, 2)}${u ? (u.length <= 2 ? ' ' : ' ') + u : ''}`; };
 
 const NATURE_TONES = [['#C9A87D', '#3E3226'], ['#DDE4D6', '#34502E'], ['#EFE6D8', '#5E4B37'], ['#D9C3A3', '#4D3F31'], ['#CBD5C4', '#34502E'], ['#E6DED2', '#5E4B37']];
@@ -1310,6 +1325,7 @@ function normalize(r) {
   out.links = Array.isArray(r.links) ? r.links : [];
   out.manual = Object.assign({ kcal: '', carbs: '', fat: '', protein: '' }, r.manual || {});
   if (r.prepMin === undefined && r.prepTime) out.prepMin = parseNum(r.prepTime) || '';
+  out.optOn = Array.isArray(out.optOn) ? out.optOn.map(String) : [];
   out.emoji = typeof out.emoji === 'string' ? [...out.emoji].slice(0, 4).join('') : '';
   out.tags = [...new Set(out.tags.map(t => t === 'Herzhaft' ? 'Deftig' : t))];
   out.warnings = Array.isArray(r.warnings) ? r.warnings : [];
@@ -1325,18 +1341,21 @@ function safeImage(v) {
   return typeof v === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v) ? v : '';
 }
 
-function sumIngredients(r, inclOpt) {
+// inclOpt: true = alle optionalen, 'none' = keine, sonst die in der Ansicht gewählten (r.optOn)
+const optIncluded = (r, i, inclOpt) => !i.optional || inclOpt === true || (inclOpt !== 'none' && inclOpt !== false && (r.optOn || []).includes(i.id));
+function sumIngredients(r, inclOpt, onlyOpt) {
   const t = { kcal: 0, carbs: 0, fat: 0, protein: 0 };
   for (const i of r.ingredients) {
-    if (i.optional && !inclOpt) continue;
+    if (!optIncluded(r, i, inclOpt) || (onlyOpt && !i.optional)) continue;
     t.kcal += parseNum(i.kcal); t.carbs += parseNum(i.carbs); t.fat += parseNum(i.fat); t.protein += parseNum(i.protein);
   }
   return t;
 }
-function totals(r, inclOpt = false) {
+function totals(r, inclOpt) {
   const s = Math.max(1, parseNum(r.servings) || 1);
   if (r.macroMode === 'manual') {
-    const p = { kcal: parseNum(r.manual.kcal), carbs: parseNum(r.manual.carbs), fat: parseNum(r.manual.fat), protein: parseNum(r.manual.protein) };
+    const extra = sumIngredients(r, inclOpt, true); // gewählte optionale Zutaten mit eigenen Makros
+    const p = { kcal: parseNum(r.manual.kcal) + extra.kcal / s, carbs: parseNum(r.manual.carbs) + extra.carbs / s, fat: parseNum(r.manual.fat) + extra.fat / s, protein: parseNum(r.manual.protein) + extra.protein / s };
     return { total: mapM(p, v => v * s), portion: p, servings: s };
   }
   const t = sumIngredients(r, inclOpt);
@@ -1347,7 +1366,7 @@ function weightInfo(r, inclOpt) {
   if (parseNum(r.weight) > 0) return { g: parseNum(r.weight), manual: true, skipped: 0 };
   let g = 0, skipped = 0;
   for (const i of r.ingredients) {
-    if (i.optional && !inclOpt) continue;
+    if (!optIncluded(r, i, inclOpt)) continue;
     if (!i.name.trim()) continue;
     const n = parseNum(i.amount); const u = (i.unit || '').toLowerCase();
     if (u === 'g' || u === 'ml') g += n; else if (u === 'kg' || u === 'l') g += n * 1000;
@@ -1355,7 +1374,7 @@ function weightInfo(r, inclOpt) {
   }
   return g > 0 ? { g, manual: false, skipped } : null;
 }
-function densityOf(r, inclOpt = false) {
+function densityOf(r, inclOpt) {
   const w = weightInfo(r, inclOpt); const t = totals(r, inclOpt).total.kcal;
   return (w && t > 0) ? t / w.g * 100 : null;
 }
@@ -1646,7 +1665,11 @@ function viewRecipe(r) {
     const cb = h('input', { type: 'checkbox', class: 'check', checked: cook.ing.has(i.id), 'aria-label': i.name + ' abhaken',
       onchange: (e) => { e.target.checked ? cook.ing.add(i.id) : cook.ing.delete(i.id); li.classList.toggle('done', e.target.checked); } });
     li.append(cb,
-      h('span', { class: 'nm' }, i.name, i.optional ? h('span', { class: 'opt-tag' }, 'Optional') : null, inStock(matchPantry(i.name)) ? h('span', { class: 'pbadge have', style: { marginLeft: '6px' }, title: 'Laut Vorratskiste daheim' }, '🫙 da') : null),
+      h('span', { class: 'nm' }, i.name, i.optional ? (parseNum(i.kcal)
+        ? h('button', { class: 'opt-in' + ((r.optOn || []).includes(i.id) ? ' on' : ''), 'data-optin': i.name, 'aria-pressed': (r.optOn || []).includes(i.id) ? 'true' : 'false', title: 'In die Makros einrechnen',
+            onclick: (e) => { e.stopPropagation(); const on = !(r.optOn || []).includes(i.id); e.currentTarget.classList.toggle('on', on); e.currentTarget.setAttribute('aria-pressed', on ? 'true' : 'false'); e.currentTarget.lastChild.textContent = on ? 'eingerechnet' : 'einrechnen'; toggleOptional(r, i, on); } },
+            icon('check'), (r.optOn || []).includes(i.id) ? 'eingerechnet' : 'einrechnen')
+        : h('span', { class: 'opt-tag' }, 'Optional')) : null, inStock(matchPantry(i.name)) ? h('span', { class: 'pbadge have', style: { marginLeft: '6px' }, title: 'Laut Vorratskiste daheim' }, '🫙 da') : null),
       h('span', { class: 'amt num' }, fmtAmt(i.amount, i.unit), parseNum(i.kcal) ? h('span', { class: 'kc' }, `${fmt(parseNum(i.kcal))} kcal · ${fmt(parseNum(i.protein), 1)} g P`) : null));
     li.addEventListener('click', (e) => { if (e.target !== cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); } });
     ul.append(li);
@@ -1705,18 +1728,16 @@ function viewRecipe(r) {
 function macroCard(r) {
   const card = h('section', { class: 'card', id: 'macro-card' });
   const draw = () => {
-    const hasOptMacros = r.macroMode === 'auto' && r.ingredients.some(i => i.optional && parseNum(i.kcal));
-    const inclOpt = hasOptMacros && state.view.inclOpt;
-    const T = totals(r, inclOpt);
+    const inclOpt = undefined;
+    const T = totals(r);
+    const optSel = r.ingredients.filter(i => i.optional && parseNum(i.kcal) && (r.optOn || []).includes(i.id));
     const v = state.view.mode === 'total' ? T.total : T.portion;
     card.replaceChildren();
     const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Bezug' },
       [['portion', 'Pro Portion'], ['total', 'Gesamt']].map(([k, l]) => h('button', { class: state.view.mode === k ? 'on' : '', 'aria-pressed': state.view.mode === k ? 'true' : 'false', onclick: () => { state.view.mode = k; draw(); } }, l)));
     const head = h('div', { class: 'macro-head' }, h('h3', null, 'Makros'), seg);
     card.append(head);
-    if (hasOptMacros) card.append(h('label', { class: 'toggle', style: { marginBottom: '14px' } },
-      h('span', { class: 'switch' }, h('input', { type: 'checkbox', id: 'incl-opt', checked: state.view.inclOpt, onchange: (e) => { state.view.inclOpt = e.target.checked; draw(); } }), h('span')),
-      'Optionale Zutaten einrechnen'));
+    if (optSel.length) card.append(h('div', { class: 'opt-note', id: 'opt-note' }, `inkl. ${optSel.map(i => i.name).join(', ')}`));
     card.append(h('div', { class: 'kcal-row' }, h('span', { class: 'v', id: 'v-kcal' }, fmt(v.kcal)), h('span', { class: 'l' }, state.view.mode === 'total' ? 'kcal gesamt' : 'kcal pro Portion')));
     card.append(h('div', { class: 'macros' },
       MACROS.map(m => h('div', { class: 'macro' }, h('div', { class: 'v num', id: 'v-' + m.k }, fmt(v[m.k], 1), h('span', null, ' g')), h('div', { class: 'bar', style: { background: m.color } }), h('div', { class: 'l' }, m.label)))));
@@ -1741,7 +1762,14 @@ function macroCard(r) {
     } else card.append(h('div', { class: 'vol' }, h('span', { class: 'muted' }, 'Für die Volumen-Einschätzung fehlen Mengen in g oder ml (oder das Fertiggewicht).')));
   };
   draw();
+  card._draw = draw;
   return card;
+}
+async function toggleOptional(r, i, on) {
+  const set = new Set(r.optOn || []); on ? set.add(i.id) : set.delete(i.id);
+  r.optOn = [...set];
+  if (Store.mode === 'ls') Store._lsWrite(); else await Store.putMany([r]);
+  const mc = $('#macro-card'); if (mc && mc._draw) mc._draw();
 }
 
 const isUrl = (s) => /^https?:\/\//i.test(s || '');
@@ -2153,7 +2181,7 @@ function editor(d, isNew) {
   const ingBox = h('div', { class: 'ing-table' });
   const sumEl = h('div', { class: 'ing-total num' });
   function updateSum() {
-    const t = sumIngredients(d, false), to = sumIngredients(d, true);
+    const t = sumIngredients(d, 'none'), to = sumIngredients(d, true);
     const optDiff = to.kcal - t.kcal;
     sumEl.replaceChildren(h('span', { class: 'hide-m' }), h('span', null, 'Summe', optDiff > 0 ? h('span', { class: 'muted', style: { fontWeight: '400', fontSize: '12px', marginLeft: '6px' } }, `+${fmt(optDiff)} kcal optional`) : ''),
       h('span', { class: 'hide-m' }), h('span', { class: 'hide-m' }),
@@ -2180,9 +2208,9 @@ function editor(d, isNew) {
           }
           e.target.dataset.old = ing.amount; updateSum();
         } });
-      const row = h('div', { class: 'ing-row', 'data-idx': idx },
+      const row = h('div', { class: 'ing-row' + (ing.optional ? ' is-opt' : ''), 'data-idx': idx },
         h('label', { class: 'c-opt', title: 'Optional: passt gut, ist aber nicht nötig' },
-          h('input', { type: 'checkbox', class: 'check square', checked: ing.optional, 'aria-label': 'Optional', onchange: (e) => { ing.optional = e.target.checked; updateSum(); } }),
+          h('input', { type: 'checkbox', class: 'check square', checked: ing.optional, 'aria-label': 'Optional', onchange: (e) => { ing.optional = e.target.checked; row.classList.toggle('is-opt', ing.optional); updateSum(); drawMacroMode(true); } }),
           h('span', { class: 'opt-lbl' }, 'Zutat optional')),
         h('input', { class: 'field c-name', value: ing.name, placeholder: 'z. B. Magerquark', 'aria-label': 'Zutat', list: 'ing-names', oninput: (e) => { ing.name = e.target.value; } }),
         amtIn,
@@ -2211,7 +2239,7 @@ function editor(d, isNew) {
         h('button', { class: 'btn', id: 'btn-mfp', onclick: () => openMFPImport(d, syncMacroMode) }, icon('import'), 'Aus MyFitnessPal einfügen'),
         h('span', { class: 'spacer', style: { flex: '1' } }),
         scaleWrap)),
-    h('span', { class: 'muted', style: { padding: '0 4px', fontSize: '13px' } }, 'Häkchen „opt.“ markiert Zutaten, die gut passen, aber nicht nötig sind. Sie zählen nicht in die Makros, können in der Ansicht aber dazugeschaltet werden.'),
+    h('span', { class: 'muted', style: { padding: '0 4px', fontSize: '13px' } }, '„Zutat optional“ markiert Zutaten, die passen, aber nicht nötig sind. In der Rezeptansicht schaltest du sie einzeln dazu, die Makros rechnen sich dann neu. Ohne „Makros je Zutat“ kannst du bei optionalen Zutaten trotzdem deren Makros eintragen.'),
     datalist));
 
   // Makro-Modus
@@ -2223,10 +2251,10 @@ function editor(d, isNew) {
       : [h('span', null, 'Volumen'), volBadge(dn), h('span', { class: 'muted num' }, `${fmt(dn)} kcal pro 100 g`)]));
   }
   function drawMacroMode(onlySum) {
-    if (onlySum) { const box = macroBox.querySelector('.auto-sum'); if (box) box.replaceChildren(...autoSumKids(totals(d))); updateVolPreview(); return; }
+    if (onlySum) { const box = macroBox.querySelector('.auto-sum'); if (box) box.replaceChildren(...autoSumKids(totals(d, 'none'))); updateVolPreview(); return; }
     macroBox.replaceChildren();
-    macroBox.append(h('div', { class: 'mode-switch' }, h('span', { class: 'muted' }, d.ingMacros ? 'Berechnet aus den Zutaten (ohne optionale), pro Portion' : 'Eigene Werte pro Portion, z. B. aus MyFitnessPal')));
-    if (d.ingMacros) macroBox.append(h('div', { class: 'auto-sum num' }, autoSumKids(totals(d))));
+    macroBox.append(h('div', { class: 'mode-switch' }, h('span', { class: 'muted' }, d.ingMacros ? 'Berechnet aus den Zutaten (ohne optionale), pro Portion' : 'Eigene Werte pro Portion ohne optionale Zutaten, z. B. aus MyFitnessPal')));
+    if (d.ingMacros) macroBox.append(h('div', { class: 'auto-sum num' }, autoSumKids(totals(d, 'none'))));
     else macroBox.append(h('div', { class: 'manual-grid' }, [['kcal', 'kcal'], ['carbs', '🍞 KH (g)'], ['fat', '🥑 Fett (g)'], ['protein', '💪 Protein (g)']].map(([k, l]) =>
       h('label', null, l, h('input', { class: 'field', id: 'man-' + k, inputmode: 'decimal', value: d.manual[k], oninput: (e) => { d.manual[k] = e.target.value; updateVolPreview(); } })))));
     macroBox.append(h('div', { class: 'row', style: { borderTop: '1px solid var(--line)' } }, h('label', { for: 'f-weight' }, 'Fertiggewicht'),
@@ -2713,7 +2741,7 @@ function dayCard(date) {
     if (r) {
       const p = totals(r).portion; const f = parseNum(m.portions) || 1;
       content = h('button', { class: 'meal-rec' + prep, title: 'Rezept öffnen', onclick: () => go('r-' + r.id) }, thumb(r),
-        h('div', { style: { minWidth: '0' } }, h('b', null, (r.title || 'Ohne Titel') + (f !== 1 ? ` ×${fmt(f, 2)}` : '')), h('span', { class: 'num' }, `${fmt(p.kcal * f)} kcal · ${fmt(p.protein * f)} g P` + (m.prepared ? ' · vorbereitet' : ''))));
+        h('div', { style: { minWidth: '0' } }, h('b', null, (r.title || 'Ohne Titel') + (f !== 1 ? ` ×${fmt(f, 2)}` : '')), h('span', { class: 'num' }, `${fmt(p.kcal * f)} kcal · ${fmt(p.carbs * f)} KH · ${fmt(p.fat * f)} F · ${fmt(p.protein * f)} P` + (m.prepared ? ' · vorbereitet' : ''))));
     } else if (m.text) {
       const mm = m.macros && parseNum(m.macros.kcal) ? m.macros : null;
       content = h('button', { class: 'meal-txt' + prep + (mm ? ' has-mac' : ''), title: 'Ändern', onclick: () => openMealPicker(m) }, h('b', null, m.text),

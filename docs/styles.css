@@ -950,6 +950,16 @@ body::after { background: linear-gradient(to bottom, transparent, color-mix(in s
 @media print { #bgimg { display: none; } }
 .side-foot { margin-left: 12px; margin-right: 12px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); align-items: center; }
 
+/* ===== Runde 15 ===== */
+#rlist { margin-bottom: 12px; padding-bottom: 18px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+.opt-in { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; border: 1px dashed var(--line); background: transparent; color: var(--fg-2); border-radius: 999px; padding: 2px 9px 2px 7px; font: 600 11.5px var(--font); cursor: pointer; vertical-align: 1px; }
+.opt-in svg { width: 11px; height: 11px; opacity: 0; }
+.opt-in.on { border: 1px solid var(--accent); background: var(--leaf-soft); color: var(--leaf-ink); }
+.opt-in.on svg { opacity: 1; }
+.opt-note { font-size: 12.5px; color: var(--leaf-ink); background: var(--leaf-soft); border-radius: 10px; padding: 6px 10px; margin: -4px 0 12px; }
+.ing-table.no-mac .ing-row.is-opt .c-mac { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ing-table.no-mac .ing-row.is-opt .c-mac .mlab { display: block; }
+@media (max-width: 900px) { .ing-table.no-mac .ing-row.is-opt { grid-template-areas: "n a u" "m m m" "o b b"; } }
 /* ===== Runde 14: Tage ohne Wackeln ===== */
 @media (max-width: 760px) {
   .days, .days:is(#days) { display: block; overflow: visible; scroll-snap-type: none; margin: 0; padding: 0; height: auto !important; touch-action: pan-y; }
