@@ -950,6 +950,15 @@ body::after { background: linear-gradient(to bottom, transparent, color-mix(in s
 @media print { #bgimg { display: none; } }
 .side-foot { margin-left: 12px; margin-right: 12px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); align-items: center; }
 
+/* ===== Runde 16: Kombinieren & Anpassen ===== */
+.meal-extras { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 0 14px; padding-left: 10px; border-left: 2px solid var(--line); }
+.meal-extra { display: flex; align-items: center; gap: 6px; }
+.mx-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; border: 0; background: transparent; padding: 4px 2px; text-align: left; color: var(--fg); font: inherit; cursor: pointer; }
+.mx-name b { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mx-name .num { font-size: 12px; color: var(--fg-2); white-space: nowrap; margin-left: auto; }
+.mx-plus { color: var(--accent); font-weight: 700; }
+.mx-sum { font-size: 12px; font-weight: 600; color: var(--leaf-ink); padding: 2px 2px 0; }
+.adj-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--clay-ink); background: var(--clay-soft); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
 /* ===== Runde 15 ===== */
 #rlist { margin-bottom: 12px; padding-bottom: 18px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
 .opt-in { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; border: 1px dashed var(--line); background: transparent; color: var(--fg-2); border-radius: 999px; padding: 2px 9px 2px 7px; font: 600 11.5px var(--font); cursor: pointer; vertical-align: 1px; }

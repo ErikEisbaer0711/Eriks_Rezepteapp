@@ -1,4 +1,4 @@
-window.APP_VERSION = 'f29500c7be';
+window.APP_VERSION = '6241cf5c34';
 'use strict';
 /* =========================================================
    Eriks Rezepte – lokale Rezept-App (eine Datei, offline)
@@ -1544,14 +1544,25 @@ function dayData(key) {
   d.place = d.place || '';
   return d;
 }
+// Eine Komponente: Rezept (mit Portionen), Notiz mit Makros oder Notiz ohne Makros. „override“ = nur für diese Mahlzeit angepasst
+function compTotals(c) {
+  if (!c) return null;
+  const r = c.recipeId && byId(c.recipeId);
+  if (!r && !c.text) return null;
+  if (c.override && parseNum(c.override.kcal)) return { kcal: parseNum(c.override.kcal), carbs: parseNum(c.override.carbs), fat: parseNum(c.override.fat), protein: parseNum(c.override.protein) };
+  if (r) { const p = totals(r).portion; const f = parseNum(c.portions) || 1; return { kcal: p.kcal * f, carbs: p.carbs * f, fat: p.fat * f, protein: p.protein * f }; }
+  if (c.macros && parseNum(c.macros.kcal)) return { kcal: parseNum(c.macros.kcal), carbs: parseNum(c.macros.carbs), fat: parseNum(c.macros.fat), protein: parseNum(c.macros.protein) };
+  return 'free';
+}
+function mealTotals(m) {
+  const t = { kcal: 0, carbs: 0, fat: 0, protein: 0 }; let has = 0, free = 0;
+  for (const c of [m, ...(m.extras || [])]) { const v = compTotals(c); if (v === 'free') free++; else if (v) { has++; for (const k in t) t[k] += v[k]; } }
+  return { t, has, free };
+}
+const macroLine = (v) => `${fmt(v.kcal)} kcal · ${fmt(v.carbs)} KH · ${fmt(v.fat)} F · ${fmt(v.protein)} P`;
 function dayTotals(d) {
   const t = { kcal: 0, carbs: 0, fat: 0, protein: 0 }; let rec = 0, free = 0;
-  for (const m of d.meals) {
-    const r = m.recipeId && byId(m.recipeId);
-    if (r) { const p = totals(r).portion; const f = parseNum(m.portions) || 1; for (const k in t) t[k] += p[k] * f; rec++; }
-    else if (m.text && m.macros && parseNum(m.macros.kcal)) { for (const k in t) t[k] += parseNum(m.macros[k]); rec++; }
-    else if (m.text) free++;
-  }
+  for (const m of d.meals) { const mt = mealTotals(m); for (const k in t) t[k] += mt.t[k]; if (mt.has) rec++; else if (mt.free) free++; }
   return { t, rec, free };
 }
 const tile = (v, l) => h('div', { class: 'sum-tile' }, h('b', null, v), h('small', null, l));
@@ -1672,9 +1683,10 @@ function dayCard(date) {
     const prep = filled && m.prepared ? ' prepped' : '';
     let content;
     if (r) {
-      const p = totals(r).portion; const f = parseNum(m.portions) || 1;
+      const f = parseNum(m.portions) || 1; const v = compTotals(m);
       content = h('button', { class: 'meal-rec' + prep, title: 'Rezept öffnen', onclick: () => go('r-' + r.id) }, thumb(r),
-        h('div', { style: { minWidth: '0' } }, h('b', null, (r.title || 'Ohne Titel') + (f !== 1 ? ` ×${fmt(f, 2)}` : '')), h('span', { class: 'num' }, `${fmt(p.kcal * f)} kcal · ${fmt(p.carbs * f)} KH · ${fmt(p.fat * f)} F · ${fmt(p.protein * f)} P` + (m.prepared ? ' · vorbereitet' : ''))));
+        h('div', { style: { minWidth: '0' } }, h('b', null, (r.title || 'Ohne Titel') + (f !== 1 ? ` ×${fmt(f, 2)}` : ''), m.override ? h('span', { class: 'adj-tag' }, 'angepasst') : null),
+          h('span', { class: 'num' }, macroLine(v) + (m.prepared ? ' · vorbereitet' : ''))));
     } else if (m.text) {
       const mm = m.macros && parseNum(m.macros.kcal) ? m.macros : null;
       content = h('button', { class: 'meal-txt' + prep + (mm ? ' has-mac' : ''), title: 'Ändern', onclick: () => openMealPicker(m) }, h('b', null, m.text),
@@ -1685,9 +1697,16 @@ function dayCard(date) {
       typeEl,
       h('div', { class: 'meal-line' }, content,
         h('div', { class: 'row-btns' },
-          filled ? h('button', { class: 'mini', 'aria-label': 'Ändern', onclick: () => openMealPicker(m) }, icon('edit')) : null,
+          filled ? h('button', { class: 'mini', 'aria-label': 'Ändern, kombinieren oder anpassen', 'data-mealact': m.type, onclick: () => openMealActions(m) }, icon('edit')) : null,
           i >= 2 ? h('button', { class: 'mini del', 'aria-label': 'Mahlzeit entfernen', onclick: () => { d.meals.splice(i, 1); save(); } }, icon('trash'))
-            : filled ? h('button', { class: 'mini del', 'aria-label': 'Leeren', onclick: () => { m.recipeId = ''; m.text = ''; m.prepared = false; save(); } }, icon('trash')) : null))));
+            : filled ? h('button', { class: 'mini del', 'aria-label': 'Leeren', onclick: () => { m.recipeId = ''; m.text = ''; m.macros = null; m.override = null; m.extras = []; m.prepared = false; save(); } }, icon('trash')) : null)),
+      filled && (m.extras || []).length ? h('div', { class: 'meal-extras' },
+        m.extras.map((c, j) => { const cr = c.recipeId && byId(c.recipeId); const v = compTotals(c);
+          return h('div', { class: 'meal-extra' },
+            h('button', { class: 'mx-name', onclick: () => cr ? go('r-' + cr.id) : openMealPicker(c, m) }, h('span', { class: 'mx-plus' }, '+'), h('b', null, cr ? (cr.title || 'Rezept') + ((parseNum(c.portions) || 1) !== 1 ? ` ×${fmt(parseNum(c.portions), 2)}` : '') : c.text),
+              h('span', { class: 'num' }, v && v !== 'free' ? `${fmt(v.kcal)} kcal · ${fmt(v.protein)} P` : 'ohne Makros')),
+            h('button', { class: 'mini del', 'aria-label': 'Komponente entfernen', onclick: () => { m.extras.splice(j, 1); save(); } }, icon('trash'))); }),
+        (() => { const mt = mealTotals(m); return h('div', { class: 'mx-sum num' }, 'Zusammen: ' + macroLine(mt.t)); })()) : null));
   });
   if (d.meals.length < MAX_MEALS) ms.append(h('button', { class: 'link-btn', style: { alignSelf: 'flex-start' }, 'data-addmeal': key,
     onclick: () => { d.meals.push({ id: uid(), type: d.meals.length === 2 ? 'Abendessen' : 'Snack' }); save(); } }, '+ Mahlzeit'));
@@ -1832,7 +1851,42 @@ function openDayInWeek(date) {
   }, 60);
 }
 
-function openMealPicker(m) {
+function openMealActions(m) {
+  const r = m.recipeId && byId(m.recipeId);
+  const dlg = $('#dlg');
+  const act = (id, ic, title, sub, fn) => h('button', { class: 'act', id, onclick: () => { dlg.close(); setTimeout(fn, 0); } },
+    h('span', { class: 'act-ic' }, icon(ic)), h('span', { class: 'act-t' }, h('b', null, title), h('small', null, sub)), icon('next'));
+  openDialog(m.type, h('div', { class: 'rec-actions', style: { margin: '0', padding: '0', background: 'none', boxShadow: 'none' } },
+    act('ma-combine', 'plus', 'Kombinieren', 'Weiteres Rezept oder eine Notiz dazunehmen, z. B. Porridge + Apfel', () => openMealPicker({ id: uid() }, m)),
+    r ? act('ma-adjust', 'edit', 'Kalorien & Makros anpassen', m.override ? 'Gerade angepasst. Ändern oder zurücksetzen' : 'Nur für diese Mahlzeit oder im Rezept speichern', () => openMealAdjust(m)) : null,
+    act('ma-change', 'calendar', r ? 'Anderes Rezept oder Notiz' : 'Notiz ändern', 'Eintrag austauschen', () => openMealPicker(m))),
+    [h('button', { class: 'btn', onclick: () => dlg.close() }, 'Abbrechen')]);
+}
+function openMealAdjust(m) {
+  const r = byId(m.recipeId); if (!r) return;
+  const f = parseNum(m.portions) || 1; const s = Math.max(1, parseNum(r.servings) || 1);
+  const base = totals(r).portion; const cur = compTotals(m);
+  const inputs = {};
+  const grid = h('div', { class: 'quick-mac' }, [['kcal', 'kcal'], ['carbs', 'KH (g)'], ['fat', 'Fett (g)'], ['protein', 'Protein (g)']].map(([k, l]) =>
+    h('label', null, h('small', null, l), inputs[k] = h('input', { class: 'field num', id: 'adj-' + k, inputmode: 'decimal', value: fmtIn(Math.round(cur[k] * 10) / 10) }))));
+  const read = () => { const v = {}; for (const k of ['kcal', 'carbs', 'fat', 'protein']) v[k] = parseNum(inputs[k].value) || 0; return v; };
+  const done = (msg) => { $('#dlg').close(); persist('plan'); rerenderTab(); toast(msg); };
+  openDialog('Kalorien & Makros anpassen', [
+    h('p', { class: 'bk-note' }, `${r.title}${f !== 1 ? ` ×${fmt(f, 2)}` : ''}. Laut Rezept: ${macroLine({ kcal: base.kcal * f, carbs: base.carbs * f, fat: base.fat * f, protein: base.protein * f })}.`),
+    grid,
+    h('p', { class: 'bk-note' }, r.macroMode === 'auto' ? 'Im Rezept speichern stellt das Rezept auf feste Werte pro Portion um. Die Makros je Zutat bleiben stehen, zählen dann aber nicht mehr.' : 'Im Rezept speichern ändert die Werte pro Portion für alle künftigen Planungen.'),
+  ], [
+    m.override ? h('button', { class: 'btn', id: 'adj-reset', onclick: () => { m.override = null; done('Wieder die Werte aus dem Rezept'); } }, 'Zurücksetzen') : h('button', { class: 'btn', onclick: () => $('#dlg').close() }, 'Abbrechen'),
+    h('button', { class: 'btn', id: 'adj-recipe', onclick: async () => {
+      const v = read(); const extra = sumIngredients(r, undefined, true);
+      const per = {}; for (const k in v) per[k] = Math.max(0, Math.round((v[k] / f - extra[k] / s) * 10) / 10);
+      r.manual = per; r.ingMacros = false; r.macroMode = 'manual'; r.updatedAt = Date.now();
+      await saveRecipe(r); m.override = null; done('Im Rezept gespeichert');
+    } }, 'Im Rezept speichern'),
+    h('button', { class: 'btn primary', id: 'adj-meal', onclick: () => { m.override = read(); done('Nur für diese Mahlzeit angepasst'); } }, 'Nur diese Mahlzeit'),
+  ]);
+}
+function openMealPicker(m, parent) {
   let q = ''; let pick = m.recipeId && byId(m.recipeId) ? m.recipeId : ''; let mode = pick ? 'recipe' : m.text ? 'text' : '';
   const list = h('div', { class: 'pick-list' });
   const portions = h('input', { class: 'field', id: 'pick-portions', inputmode: 'decimal', value: fmtIn(m.portions || 1), style: { width: '72px' } });
@@ -1861,12 +1915,14 @@ function openMealPicker(m) {
     if (mode === 'text') { const t = txt.value.trim(); if (!t) return; m.text = t; m.recipeId = '';
       const mv = {}; for (const k of ['kcal', 'carbs', 'fat', 'protein']) mv[k] = parseNum($('#qm-' + k).value) || 0;
       m.macros = mv.kcal || mv.carbs || mv.fat || mv.protein ? mv : null; }
-    else if (mode === 'recipe' && pick) { m.recipeId = pick; m.text = ''; m.portions = parseNum(portions.value) || 1; }
+    else if (mode === 'recipe' && pick) { if (m.recipeId !== pick || parseNum(portions.value) !== parseNum(m.portions || 1)) m.override = null; m.recipeId = pick; m.text = ''; m.portions = parseNum(portions.value) || 1; }
     else return;
+    if (mode === 'text') m.override = null;
+    if (parent) { parent.extras = parent.extras || []; if (!parent.extras.includes(m)) parent.extras.push(m); }
     $('#dlg').close(); persist('plan'); rerenderTab();
   };
   ok.onclick = apply;
-  openDialog(`${m.type} planen`, [
+  openDialog(parent ? `${parent.type}: kombinieren mit …` : `${m.type} planen`, [
     h('span', { class: 'cap', style: { padding: '0' } }, 'Notiz'),
     txt,
     h('div', { class: 'quick-mac', 'aria-label': 'Schnelleingabe Makros (optional)' },
@@ -2121,7 +2177,7 @@ function shopRecipe(r) {
 }
 function shopWeek(datas) {
   const agg = new Map();
-  for (const d of datas) for (const m of d.meals) {
+  for (const d of datas) for (const m of d.meals.flatMap(x => [x, ...(x.extras || [])])) {
     const r = m.recipeId && byId(m.recipeId); if (!r) continue;
     const f = (parseNum(m.portions) || 1) / Math.max(1, parseNum(r.servings) || 1);
     for (const i of r.ingredients) {
