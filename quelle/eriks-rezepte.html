@@ -1838,18 +1838,24 @@ function buildBackup(withPhotos = true) {
 }
 const isTouchDevice = () => matchMedia('(pointer: coarse)').matches || navigator.standalone === true;
 // Datei übergeben: iPhone → Teilen-Menü („In Dateien sichern“, AirDrop …), Mac → Speicherort wählen oder Downloads
-async function saveFile(filename, text, title) {
-  const blob = new Blob([text], { type: 'application/json' });
-  if (isTouchDevice() && navigator.canShare && typeof File === 'function') {
-    const file = new File([blob], filename, { type: 'application/json' });
-    if (navigator.canShare({ files: [file] })) {
+// Datei weitergeben. iPhone: Teilen-Menü. Klappt das nicht direkt (z. B. weil iOS die Geste „verbraucht“ hat),
+// erscheint ein Fenster mit „Jetzt teilen“, das eine frische Berührung auslöst.
+async function shareBlob(blob, filename, title, opts = {}) {
+  if (isTouchDevice() && navigator.share && typeof File === 'function') {
+    const types = [blob.type, ...(opts.altTypes || [])];
+    let file = null;
+    for (const t of types) { const f = new File([blob], filename, { type: t }); if (!navigator.canShare || navigator.canShare({ files: [f] })) { file = f; break; } }
+    if (file) {
+      if (opts.forceSheet) { showShareSheet(file, title, opts); return 'pending'; }
       try { await navigator.share({ files: [file], title }); return 'shared'; }
-      catch (e) { if (e && e.name === 'AbortError') return 'aborted'; }
+      catch (e) { if (e && e.name === 'AbortError') return 'aborted'; showShareSheet(file, title, opts); return 'pending'; }
     }
+    showShareSheet(null, title, Object.assign({ blob, filename }, opts)); return 'pending';
   }
-  if (window.showSaveFilePicker) {
+  if (window.showSaveFilePicker && !opts.noPicker) {
     try {
-      const hnd = await window.showSaveFilePicker({ suggestedName: filename, types: [{ description: 'Rezept-Datei (JSON)', accept: { 'application/json': ['.json'] } }] });
+      const ext = filename.split('.').pop();
+      const hnd = await window.showSaveFilePicker({ suggestedName: filename, types: [{ description: ext === 'pdf' ? 'PDF' : 'Rezept-Datei (JSON)', accept: { [blob.type]: ['.' + ext] } }] });
       const w = await hnd.createWritable(); await w.write(blob); await w.close(); return 'saved';
     } catch (e) { if (e && e.name === 'AbortError') return 'aborted'; }
   }
@@ -1857,11 +1863,28 @@ async function saveFile(filename, text, title) {
   document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   return 'downloaded';
 }
+function showShareSheet(file, title, opts) {
+  const dlg = $('#dlg');
+  const body = [h('p', { class: 'bk-note' }, file ? `„${file.name}“ ist fertig (${fmtBytes(file.size)}). Tippe auf „Jetzt teilen“ und wähle z. B. „In Dateien sichern“, AirDrop oder eine App.` : 'Dieses Gerät kann die Datei nicht direkt teilen.')];
+  if (!file && opts.text) body.push(h('p', { class: 'bk-note' }, 'Du kannst den Inhalt stattdessen kopieren und z. B. in einer Notiz oder Nachricht einfügen. Beim Import in die App funktioniert das über „Importieren“ nicht, dafür braucht es die Datei.'));
+  openDialog(opts.sheetTitle || 'Datei teilen', body, [
+    h('button', { class: 'btn', onclick: () => dlg.close() }, 'Schließen'),
+    !file && opts.text ? h('button', { class: 'btn', onclick: async () => { try { await navigator.clipboard.writeText(opts.text); toast('Kopiert'); } catch (e) { toast('Kopieren nicht möglich'); } } }, 'Inhalt kopieren') : null,
+    file ? h('button', { class: 'btn primary', id: 'share-now', onclick: async () => {
+      try { await navigator.share({ files: [file], title }); dlg.close(); opts.onShared && opts.onShared(); }
+      catch (e) { if (!e || e.name !== 'AbortError') toast('Teilen hat nicht geklappt: ' + (e && e.message || e)); }
+    } }, icon('share'), 'Jetzt teilen') : null,
+  ]);
+}
+async function saveFile(filename, text, title, opts = {}) {
+  return shareBlob(new Blob([text], { type: 'application/json' }), filename, title, Object.assign({ altTypes: ['text/plain', 'application/octet-stream'], text }, opts));
+}
 async function exportBackup(withPhotos = true) {
   const text = JSON.stringify(buildBackup(withPhotos));
   const name = `eriks-rezepte-backup-${new Date().toISOString().slice(0, 10)}${withPhotos ? '' : '-ohne-fotos'}.json`;
-  const res = await saveFile(name, text, 'Eriks Rezepte – Backup');
+  const res = await saveFile(name, text, 'Eriks Rezepte – Backup', { sheetTitle: 'Backup teilen', onShared: () => { Settings.set('lastBackup', Date.now()); renderSidebar(route()); toast('Backup gesichert'); } });
   if (res === 'aborted') return toast('Backup abgebrochen');
+  if (res === 'pending') return;
   Settings.set('lastBackup', Date.now());
   toast(`Backup gesichert (${fmtBytes(new Blob([text]).size)})`);
   renderSidebar(route());
@@ -1931,8 +1954,8 @@ function openCookMode(r) {
 
 function openExportDialog(r) {
   openDialog('Rezept exportieren', h('div', { class: 'rec-actions', style: { margin: '0', padding: '0', background: 'none', boxShadow: 'none' } },
-    h('button', { class: 'act', id: 'exp-pdf', onclick: () => { $('#dlg').close(); printRecipe(r); } }, h('span', { class: 'act-ic' }, icon('pdf')),
-      h('span', { class: 'act-t' }, h('b', null, 'Als PDF speichern'), h('small', null, 'Zum Ausdrucken oder Weitergeben. Im Druckmenü auf Teilen tippen und „In Dateien sichern“ wählen.'))),
+    h('button', { class: 'act', id: 'exp-pdf', onclick: () => { $('#dlg').close(); exportPdf(r); } }, h('span', { class: 'act-ic' }, icon('pdf')),
+      h('span', { class: 'act-t' }, h('b', null, 'Als PDF speichern'), h('small', null, 'Zum Ausdrucken oder Weitergeben, z. B. per Nachricht oder in die Dateien-App.'))),
     h('button', { class: 'act', id: 'exp-file', onclick: () => { $('#dlg').close(); exportRecipe(r); } }, h('span', { class: 'act-ic' }, icon('share')),
       h('span', { class: 'act-t' }, h('b', null, 'Als Rezept-Datei teilen'), h('small', null, 'Für die App: Wer die Datei importiert, bekommt das Rezept vollständig mit Foto.')))),
     [h('button', { class: 'btn', onclick: () => $('#dlg').close() }, 'Abbrechen')]);
@@ -1941,7 +1964,8 @@ async function exportRecipe(r) {
   const rec = JSON.parse(JSON.stringify(r)); rec.links = []; delete rec.example;
   const data = { app: 'eriks-rezepte', type: 'rezept', version: 1, exportedAt: new Date().toISOString(), recipe: rec,
     linkedTitles: r.links.map(byId).filter(Boolean).map(o => o.title) };
-  const res = await saveFile(`rezept-${slugify(r.title)}.json`, JSON.stringify(data), `Rezept: ${r.title || 'Ohne Titel'}`);
+  const res = await saveFile(`rezept-${slugify(r.title)}.json`, JSON.stringify(data), `Rezept: ${r.title || 'Ohne Titel'}`, { sheetTitle: 'Rezept teilen' });
+  if (res === 'pending') return;
   if (res !== 'aborted') toast('Rezept-Datei erstellt');
 }
 async function openMenu() {
@@ -2506,6 +2530,93 @@ function openMFPImport(d, done) {
 }
 
 /* ---------- PDF / Druck ---------- */
+/* ---------- PDF direkt erzeugen (ohne Druckdialog) ---------- */
+async function exportPdf(r) {
+  if (!isTouchDevice()) return printRecipe(r);
+  toast('PDF wird erstellt …');
+  try {
+    const blob = await recipePdf(r);
+    await shareBlob(blob, `${slugify(r.title)}.pdf`, r.title || 'Rezept', { forceSheet: true, sheetTitle: 'PDF teilen', noPicker: true });
+  } catch (e) { toast('PDF konnte nicht erstellt werden'); }
+}
+const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+async function recipePages(r) {
+  const W = 1240, H = 1754, M = 96, CW = W - 2 * M;
+  const C = { ink: '#262624', mute: '#6b6a66', accent: '#46613F', soft: '#EEF1EA', line: '#DDD9D0', oak: '#B08D62' };
+  const serif = 'ui-serif, "New York", Georgia, serif', sans = '-apple-system, "Helvetica Neue", Arial, sans-serif';
+  const pages = []; let cv, ctx, y;
+  const newPage = () => { cv = document.createElement('canvas'); cv.width = W; cv.height = H; ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.textBaseline = 'top'; pages.push(cv); y = M; };
+  const need = (hgt) => { if (y + hgt > H - M - 40) newPage(); };
+  const font = (sz, w = 400, fam = sans) => { ctx.font = `${w} ${sz}px ${fam}`; };
+  const wrap = (text, maxW) => { const out = []; for (const para of String(text).split('\n')) { let line = ''; for (const word of para.split(/\s+/)) { const t = line ? line + ' ' + word : word; if (ctx.measureText(t).width > maxW && line) { out.push(line); line = word; } else line = t; } out.push(line); } return out; };
+  const textBlock = (text, x, maxW, sz, lh, color = C.ink, w = 400, fam = sans) => { font(sz, w, fam); ctx.fillStyle = color; for (const l of wrap(text, maxW)) { need(lh); ctx.fillText(l, x, y); y += lh; } };
+  const heading = (t) => { need(90); y += 18; font(36, 600, serif); ctx.fillStyle = C.ink; ctx.fillText(t, M, y); y += 50; ctx.fillStyle = C.line; ctx.fillRect(M, y, CW, 2); y += 18; };
+  newPage();
+  if (r.image) {
+    try { const img = await loadImg(r.image); const hh = 520; const sc = Math.max(W / img.width, hh / img.height); const sw = W / sc, sh = hh / sc;
+      ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, W, hh); y = hh + 56; } catch (e) {}
+  }
+  font(22, 700); ctx.fillStyle = C.accent; ctx.fillText('ERIKS REZEPTE', M, y); y += 40;
+  textBlock(r.title || 'Ohne Titel', M, CW, 60, 70, C.ink, 600, serif);
+  if (r.subtitle) { y += 4; textBlock(r.subtitle, M, CW, 28, 38, C.mute); }
+  const T = totals(r); const tm = timesOf(r);
+  const meta = [`${fmt(T.servings)} ${T.servings === 1 ? 'Portion' : 'Portionen'}`, tm.prep ? `Vorbereitung ${fmtMin(tm.prep)}` : '', tm.cook ? `Kochzeit ${fmtMin(tm.cook)}` : '', tm.rest ? `Ruhezeit ${fmtMin(tm.rest)}` : '', tm.total ? `Gesamt ${fmtMin(tm.total)}` : ''].filter(Boolean).join('  ·  ');
+  y += 10; textBlock(meta, M, CW, 24, 34, C.mute);
+  // Makros
+  y += 20; need(130);
+  const boxes = [[`${fmt(T.portion.kcal)}`, 'kcal pro Portion'], [`${fmt(T.portion.carbs, 1)} g`, 'Kohlenhydrate'], [`${fmt(T.portion.fat, 1)} g`, 'Fett'], [`${fmt(T.portion.protein, 1)} g`, 'Protein']];
+  const bw = (CW - 3 * 16) / 4;
+  boxes.forEach(([v, l], k) => { const x = M + k * (bw + 16); ctx.fillStyle = k === 0 ? C.accent : C.soft; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, bw, 112, 18) : ctx.rect(x, y, bw, 112); ctx.fill();
+    font(38, 700); ctx.fillStyle = k === 0 ? '#fff' : C.ink; ctx.fillText(v, x + 22, y + 20); font(20, 500); ctx.fillStyle = k === 0 ? 'rgba(255,255,255,.85)' : C.mute; ctx.fillText(l, x + 22, y + 72); });
+  y += 140;
+  const optOn = r.ingredients.filter(i => i.optional && (r.optOn || []).includes(i.id)).map(i => i.name);
+  if (optOn.length) textBlock(`inkl. ${optOn.join(', ')}`, M, CW, 22, 30, C.accent);
+  // Zutaten
+  const ings = [...r.ingredients.filter(i => !i.optional), ...r.ingredients.filter(i => i.optional)].filter(i => i.name.trim());
+  if (ings.length) { heading('Zutaten'); for (const i of ings) {
+    font(27, 400); const lines = wrap(i.name + (i.optional ? ' (optional)' : ''), CW - 240); need(lines.length * 38 + 8);
+    font(27, 600); ctx.fillStyle = C.ink; ctx.fillText(fmtAmt(i.amount, i.unit) || '–', M, y);
+    font(27, 400); ctx.fillStyle = i.optional ? C.mute : C.ink; lines.forEach((l, k) => ctx.fillText(l, M + 240, y + k * 38)); y += lines.length * 38 + 8; } }
+  // Gewürze
+  const groups = r.spiceGroups.filter(g => g.spices.some(x => x.name));
+  if (groups.length) { heading('Gewürze'); for (const g of groups) {
+    textBlock((g.name || 'Gewürze') + (parseInt(g.step, 10) ? ` · Schritt ${parseInt(g.step, 10)}` : ''), M, CW, 25, 34, C.accent, 600);
+    textBlock(g.spices.filter(x => x.name).map(x => (x.amount ? x.amount + ' ' : '') + x.name).join(', '), M, CW, 27, 38); y += 8; } }
+  // Zubereitung
+  const steps = r.steps.map(x => x.trim()).filter(Boolean);
+  if (steps.length) { heading('Zubereitung'); steps.forEach((st, k) => {
+    font(27, 400); const lines = wrap(st, CW - 70); need(Math.min(lines.length, 3) * 39 + 14);
+    ctx.fillStyle = C.accent; ctx.beginPath(); ctx.arc(M + 20, y + 17, 20, 0, Math.PI * 2); ctx.fill(); font(22, 700); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(String(k + 1), M + 20, y + 5); ctx.textAlign = 'left';
+    font(27, 400); ctx.fillStyle = C.ink; for (const l of lines) { need(39); ctx.fillText(l, M + 70, y); y += 39; } y += 14; }); }
+  if (r.notes.trim()) { heading('Sonstiges'); textBlock(r.notes, M, CW, 27, 38); }
+  pages.forEach((p, k) => { const c = p.getContext('2d'); c.font = `400 20px ${sans}`; c.fillStyle = C.mute; c.textBaseline = 'alphabetic';
+    c.fillText(`Eriks Rezepte · ${new Date().toLocaleDateString('de-DE')}`, M, H - 50); c.textAlign = 'right'; c.fillText(`${k + 1} / ${pages.length}`, W - M, H - 50); c.textAlign = 'left'; });
+  return pages;
+}
+async function recipePdf(r) {
+  const pages = await recipePages(r);
+  const enc = new TextEncoder(); const parts = []; const offs = []; let len = 0;
+  const push = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+  const obj = (n, body) => { offs[n] = len; push(`${n} 0 obj\n`); body(); push('\nendobj\n'); };
+  push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  const n = pages.length; const kids = pages.map((_, k) => `${3 + 3 * k} 0 R`).join(' ');
+  obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2, () => push(`<< /Type /Pages /Kids [${kids}] /Count ${n} >>`));
+  for (let k = 0; k < n; k++) {
+    const cv = pages[k];
+    const jpg = new Uint8Array(await (await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.86))).arrayBuffer());
+    const pg = 3 + 3 * k, im = pg + 1, ct = pg + 2;
+    obj(pg, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im0 ${im} 0 R >> >> /Contents ${ct} 0 R >>`));
+    obj(im, () => { push(`<< /Type /XObject /Subtype /Image /Width ${cv.width} /Height ${cv.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`); push(jpg); push('\nendstream'); });
+    const c = 'q 595.28 0 0 841.89 0 0 cm /Im0 Do Q';
+    obj(ct, () => push(`<< /Length ${c.length} >>\nstream\n${c}\nendstream`));
+  }
+  const xref = len; const count = 3 + 3 * n;
+  let x = `xref\n0 ${count}\n0000000000 65535 f \n`;
+  for (let k = 1; k < count; k++) x += String(offs[k]).padStart(10, '0') + ' 00000 n \n';
+  push(x + `trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(parts, { type: 'application/pdf' });
+}
 function printRecipe(r) {
   const root = $('#print-root');
   const T = totals(r);
@@ -3503,7 +3614,7 @@ function seedRecipes() {
   const isWide = matchMedia('(min-width: 821px)').matches;
   if (!location.href.includes('#')) history.replaceState(null, '', '#woche');
   onRoute();
-  window.__app = { state, Store, KV, Settings, parseMFP, totals, matchPantry, parseShopText, deleteRecipe, buildBackup, detectImport, safeImage };
+  window.__app = { recipePdf, state, Store, KV, Settings, parseMFP, totals, matchPantry, parseShopText, deleteRecipe, buildBackup, detectImport, safeImage };
 })();
 </script>
 </body>
